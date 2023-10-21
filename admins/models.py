@@ -18,9 +18,21 @@ class Profile(models.Model):
     job_role = models.CharField(max_length=100)
 
     def __str__(self):
-        return str(self.name)
+        return str(self.user)
 
     # Bank details ... Is it necessary?
+
+class BankDetails(models.Model):
+    user = models.ForeignKey("Profile", on_delete = models.CASCADE)
+    bank_name = models.CharField(max_length=50)
+    account_number = models.CharField(max_length=15) # Integer field?
+    ussd_code = models.CharField(max_length=15) # The uss_code will be dependent on the acct_num...the json will play a role here
+
+    def __str__(self):
+        return str(self.user)
+    
+
+
 
 
 class Event(models.Model):
@@ -29,7 +41,12 @@ class Event(models.Model):
     title = models.CharField(max_length=256)
     description = models.TextField()
     date = models.DateTimeField()
-    location = models.CharField(max_length=256) # If its online or Live ... should be specified
+    type = models.CharField(choices = (
+        ("online", "online"),
+        ("live", "live")
+    ))
+    location = models.CharField(max_length=256) # Can serve for both link and venue
+    directions = models.TextField() # optional field
 
     def __str__(self):
         return str(self.title)
@@ -37,6 +54,7 @@ class Event(models.Model):
 
 class News(models.Model):
     author = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    title = models.CharField(max_length=100)
     post = models.TextField()
     date = models.DateTimeField(default=datetime.now())
     category = models.CharField(choices=()) 
