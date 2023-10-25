@@ -45,7 +45,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'tinymce',
     'corsheaders',
-    
+    'django_countries',
+    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
@@ -160,13 +161,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REDIS_DB = 0
 
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 """
-CORS_ORIGIN_WHITELIST = (
-    'http://127.0.0.1:5501',
-)
+CORS_ALLOWED_ORIGINS = [
+    'https://frontend-domain.com'
+]
 """
-CORS_ALLOW_CREDENTIALS = False
-
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 ENCRYPT_KEY = b''

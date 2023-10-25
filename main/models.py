@@ -1,27 +1,45 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django_countries.fields import CountryField
+from rest_framework.authtoken.models import Token
 
 # Create your models here.
 class Position(models.Model):
     title = models.CharField(max_length=150)
+    def __str__(self):
+        return f'{self.title}'
 
 class Department(models.Model):
     title = models.CharField(max_length=150)
+    def __str__(self):
+        return f'{self.title}'
 
 class Profile(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="profile")
-    first_name = models.CharField(max_length=100)
-    last_name = models.CharField(max_length=100)
+    title = models.CharField(max_length=100, choices=(
+        ('Dr', 'Dr'),
+        ('Engr', 'Engr'),
+        ('Miss', 'Miss'),
+        ('Mr', 'Mr'),
+        ('Mrs', 'Mrs'),
+        ('Prof', 'Prof'),
+    ), null=True, blank=True)
+    first_name = models.CharField(max_length=100, null=True, blank=True)
+    middle_name = models.CharField(max_length=100, null=True, blank=True)
+    last_name = models.CharField(max_length=100, null=True, blank=True)
     email = models.EmailField()
-    age = models.PositiveIntegerField()
-    date_of_entry = models.DateField()
-    address = models.CharField(max_length=100)
-    phone_number = models.CharField(max_length=100)
+    date_of_birth = models.DateField(blank=True, null=True)
+    appointment_date = models.DateField(blank=True, null=True)
+    address = models.CharField(max_length=500, blank=True)
+    nationality = models.CharField(max_length=100, null=True, blank=True)
+    phone_number = models.CharField(max_length=100, null=True, blank=True)
     position = models.ForeignKey(Position, on_delete=models.DO_NOTHING, null=True, blank=True)
     department = models.ForeignKey(Department, on_delete=models.DO_NOTHING, null=True, blank=True)
-    id_no = models.PositiveIntegerField(unique=True, verbose_name="ID Number") #You could remove this if its not necessary
-    salary = models.DecimalField(decimal_places=2, max_digits=10)
+    id_no = models.CharField(max_length=15, unique=True, verbose_name="ID Number") #You could remove this if its not necessary
+    salary = models.DecimalField(decimal_places=2, max_digits=15, default=0.00, blank=True)
+    is_premium_user = models.BooleanField(default=False)
+    api_token = models.OneToOneField(Token, on_delete=models.DO_NOTHING, null=True, blank=True)
     class Meta:
         ordering = ['first_name']
     def __str__(self):
@@ -39,9 +57,9 @@ class Bank(models.Model):
 
 class BankAccount(models.Model):
     user = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="bank_details")
-    bank = models.ForeignKey(Bank, on_delete=models.DO_NOTHING)
-    account_number = models.CharField(max_length=15) # Integer field?
-    account_name = models.CharField(max_length=200)
+    bank = models.ForeignKey(Bank, on_delete=models.DO_NOTHING, null=True, blank=True)
+    account_number = models.CharField(max_length=15, null=True, blank=True) # Integer field?
+    account_name = models.CharField(max_length=200, null=True, blank=True)
     def __str__(self):
         return str(self.user.__str__())
 
