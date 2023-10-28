@@ -46,7 +46,6 @@ INSTALLED_APPS = [
     'tinymce',
     'corsheaders',
     'django_countries',
-    'rest_framework.authtoken',
 ]
 
 MIDDLEWARE = [
@@ -151,6 +150,8 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'kosmos/static/')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
@@ -167,7 +168,6 @@ CORS_ALLOWED_ORIGINS = [
     'https://frontend-domain.com'
 ]
 """
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 ENCRYPT_KEY = b''
 

@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from rest_framework.decorators import action
 from django.contrib.auth import login, authenticate, logout
+import secrets
 import re
 import json
 from django.db.models import Q
@@ -23,7 +24,9 @@ from django.http import FileResponse
 from django.utils.text import slugify
 import random
 import string
-from rest_framework.authtoken.models import Token
+
+employee_group, created = Group.objects.get_or_create(name="employee")
+admin_group, created = Group.objects.get_or_create(name="admin")
 
 def slugify(s):
     s = s.lower().strip()
@@ -99,7 +102,7 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             
     @action(detail=False,
             methods=['post'],
-            authentication_classes = [TokenAuthentication])
+            authentication_classes = [BasicAuthentication])
     def create_site_info(self, request, *args, **kwargs):
         if request.method == 'POST':
             title = request.data.get('title')
@@ -134,7 +137,7 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             })
     @action(detail=False,
             methods=['post'],
-            authentication_classes = [TokenAuthentication])
+            authentication_classes = [BasicAuthentication])
     def edit_site_info(self, request, *args, **kwargs):
         if request.method == 'POST':
             title = request.data.get('title')
@@ -196,7 +199,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         email = request.data.get('email')
         f_name = request.data.get('first_name')
         l_name = request.data.get('last_name')
-        type = (request.data.get('account_type')).strip()
+        a_type = request.data.get('account_type')
         # check if email is valid (view.py line 49)
         if is_valid_email(email):
             emails = []
@@ -206,23 +209,22 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 emails.append(user.email)
             # check if email is not in existence
             if email not in emails:
-                group = None
                 # check account type and retrieve appropriate group
-                if type == 'admin':
-                    group = Group.objects.get(name="admin")
-                elif type == 'employee':
-                    group = Group.objects.get(name="employee")
                 try:  
                     new_user = User.objects.create(username=email, email=email, first_name=f_name, last_name=l_name)
                     new_user.set_password(l_name)
                     new_user.save()
-                    new_user.groups.add(group)
+                    if a_type == 'admin':
+                        new_user.groups.add(admin_group)
+                        new_user.save()
+                    elif a_type == 'employee':
+                        new_user.groups.add(employee_group)
+                        new_user.save()
                     # creates a new API key for user instance
-                    token = Token.objects.create(user=new_user)
+                    api_key = secrets.token_urlsafe(100)
                     # create a new profile
-                    new_profile = Profile.objects.create(user=new_user, api_token=token, email=email, first_name=f_name, last_name=l_name)
-                    # create a new bank account model
-                    BankAccount.objects.create(user=new_profile)
+                    new_profile = Profile(user=new_user, email=email, first_name=f_name, last_name=l_name, api_token=api_key)
+                    new_profile.save()
                     return Response({
                         'status': 'success',
                         'message': f'Account created successfully. username is {email} and password is {f_name}',
@@ -231,7 +233,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 except:
                     return Response({
                         'status': 'error',
-                        'message': f'Error occued while creating account',
+                        'message': f'Error occured while creating account',
                     })
             else:
                 return Response({
@@ -246,8 +248,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
 
     # to register the created account by filling profile details
     @action(detail=False,
-            methods=['post'],
-            authentication_classes = [TokenAuthentication])
+            methods=['post'])
     def register(self, request, *args, **kwargs):
         email = request.data.get('email')
         title = request.data.get('title')
@@ -349,10 +350,9 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
             authentication_classes = [TokenAuthentication])
     def get_admin_profile(self, request, *args, **kwargs):
         key = request.POST.get('api_token').strip()
-        token = Token.objects.get(key=key)
         group = Group.objects.get(name="admin")
         try:
-            profile = Profile.objects.get(api_token=token)
+            profile = Profile.objects.get(api_token=key)
             user = profile.user
             if group in user.groups.all():
                 return Response({

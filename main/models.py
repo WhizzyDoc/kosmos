@@ -2,7 +2,6 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django_countries.fields import CountryField
-from rest_framework.authtoken.models import Token
 
 # Create your models here.
 class Position(models.Model):
@@ -16,7 +15,7 @@ class Department(models.Model):
         return f'{self.title}'
 
 class Profile(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="profile")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="profile", null=True, blank=True)
     title = models.CharField(max_length=100, choices=(
         ('Dr', 'Dr'),
         ('Engr', 'Engr'),
@@ -28,7 +27,7 @@ class Profile(models.Model):
     first_name = models.CharField(max_length=100, null=True, blank=True)
     middle_name = models.CharField(max_length=100, null=True, blank=True)
     last_name = models.CharField(max_length=100, null=True, blank=True)
-    email = models.EmailField()
+    email = models.EmailField(blank=True, null=True)
     date_of_birth = models.DateField(blank=True, null=True)
     appointment_date = models.DateField(blank=True, null=True)
     address = models.CharField(max_length=500, blank=True)
@@ -36,10 +35,10 @@ class Profile(models.Model):
     phone_number = models.CharField(max_length=100, null=True, blank=True)
     position = models.ForeignKey(Position, on_delete=models.DO_NOTHING, null=True, blank=True)
     department = models.ForeignKey(Department, on_delete=models.DO_NOTHING, null=True, blank=True)
-    id_no = models.CharField(max_length=15, unique=True, verbose_name="ID Number") #You could remove this if its not necessary
-    salary = models.DecimalField(decimal_places=2, max_digits=15, default=0.00, blank=True)
+    id_no = models.CharField(max_length=15, unique=True, verbose_name="ID Number", blank=True, null=True) #You could remove this if its not necessary
+    salary = models.DecimalField(decimal_places=2, max_digits=15, default=0.00, blank=True, null=True)
     is_premium_user = models.BooleanField(default=False)
-    api_token = models.OneToOneField(Token, on_delete=models.DO_NOTHING, null=True, blank=True)
+    api_token = models.CharField(max_length=250, null=True, blank=True)
     class Meta:
         ordering = ['first_name']
     def __str__(self):

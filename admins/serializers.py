@@ -2,7 +2,6 @@ from rest_framework import serializers
 from .models import *
 from main.models import *
 from django.contrib.auth.models import User
-from rest_framework.authtoken.models import Token
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,15 +40,10 @@ class BankAccountSerializer(serializers.ModelSerializer):
         model = BankAccount
         fields = ['id', 'user', 'bank', 'account_number', 'account_name']
 
-class TokenSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Token
-        fields = ['key']
 
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(many=False, read_only=True)
     position = PositionSerializer(many=False, read_only=True)
-    api_token = TokenSerializer(many=False, read_only=True)
     department = DepartmentSerializer(many=False, read_only=True)
     class Meta:
         model = Profile
