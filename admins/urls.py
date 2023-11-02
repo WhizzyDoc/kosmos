@@ -7,6 +7,7 @@ router.register('site', views.SiteViewSet)
 router.register('profile', views.ProfileViewSet)
 router.register('departments', views.DepartmentViewSet)
 router.register('positions', views.PositionViewSet)
+router.register('banks', views.BankViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

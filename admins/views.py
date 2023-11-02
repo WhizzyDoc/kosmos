@@ -27,6 +27,7 @@ import string
 
 employee_group, created = Group.objects.get_or_create(name="employee")
 admin_group, created = Group.objects.get_or_create(name="admin")
+staff_group, created = Group.objects.get_or_create(name="staff")
 
 def slugify(s):
     s = s.lower().strip()
@@ -41,10 +42,26 @@ def join(s):
     s = re.sub(r'^-+|-+$', '', s)
     return s
 
-def generate(n):
-    digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
-    random_combination = ''.join(random.choice(digits) for _ in range(n))
-    return random_combination
+def generate_id(id):
+    id = int(id)
+    id_no = ""
+    if id < 10:
+        id_no = f'kos000{id}'
+    elif id >= 10 and id < 100:
+        id_no = f'kos00{id}'
+    elif id >= 100 and id < 1000:
+        id_no = f'kos0{id}'
+    elif id >= 1000:
+        id_no = f'kos{id}'
+    return id_no
+    
+
+def generate_token():
+    key = ''
+    for i in range(60):
+        rand_char = random.choice("abcdefghijklmnopqrstuvwxyz1234567890")
+        key += rand_char
+    return key
 
 def sterilize(s):
     s = ''.join(letter for letter in s if letter.isalnum())
@@ -210,24 +227,31 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
             # check if email is not in existence
             if email not in emails:
                 # check account type and retrieve appropriate group
-                try:  
-                    new_user = User.objects.create(username=email, email=email, first_name=f_name, last_name=l_name)
-                    new_user.set_password(l_name)
+                try:
+                    new_user = User.objects.create(email=email, first_name=f_name, last_name=l_name)
+                    new_user.set_password(f_name)
+                    new_user.save()
+                    id_no = generate_id(new_user.id)
+                    new_user.username = id_no
                     new_user.save()
                     if a_type == 'admin':
                         new_user.groups.add(admin_group)
+                        new_user.is_superuser = True
+                        new_user.save()
+                    elif a_type == 'staff':
+                        new_user.groups.add(staff_group)
                         new_user.save()
                     elif a_type == 'employee':
                         new_user.groups.add(employee_group)
                         new_user.save()
                     # creates a new API key for user instance
-                    api_key = secrets.token_urlsafe(100)
+                    api_key = generate_token()
                     # create a new profile
-                    new_profile = Profile(user=new_user, email=email, first_name=f_name, last_name=l_name, api_token=api_key)
+                    new_profile = Profile(user=new_user, email=email, id_no=id_no, first_name=f_name, last_name=l_name, api_token=api_key)
                     new_profile.save()
                     return Response({
                         'status': 'success',
-                        'message': f'Account created successfully. username is {email} and password is {f_name}',
+                        'message': f'Account created successfully. username is {id_no} and password is {f_name}',
                         'profile': ProfileSerializer(new_profile).data
                     })
                 except:
@@ -261,6 +285,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         position = request.data.get('position')
         department = request.data.get('department')
         salary = request.data.get('salary')
+        image = request.FILES.get('image')
         #id_no = ''
         # check if post email data is valid
         if is_valid_email(email):
@@ -295,6 +320,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 profile.nationality = nationality
                 profile.phone_number = phone_number
                 profile.salary = salary
+                profile.image = image
                 profile.save()
                 return Response({
                     'status': 'success',
@@ -316,13 +342,12 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def authentication(self, request, *args, **kwargs):
-        username = sterilize(request.data.get('username'))
-        password = request.data.get('password').strip()
-        group = Group.objects.get(name="admin")
+        username = request.data.get('username')
+        password = request.data.get('password')
         user = authenticate(request, username=username, password=password)
         if user is not None:
             if user.is_active:
-                if group in user.groups.all():
+                if admin_group in user.groups.all():
                     login(request, user)
                     profile = get_object_or_404(Profile, user=user)
                     return Response({
@@ -346,19 +371,17 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': "Invalid login credentials",
             })
     @action(detail=False,
-            methods=['post'],
-            authentication_classes = [TokenAuthentication])
+            methods=['post'])
     def get_admin_profile(self, request, *args, **kwargs):
-        key = request.POST.get('api_token').strip()
-        group = Group.objects.get(name="admin")
+        key = request.data.get('api_token')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
-            if group in user.groups.all():
+            if admin_group in user.groups.all():
                 return Response({
                     'status': "success",
                     "message": "data fetched successfully",
-                    "profile": ProfileSerializer(profile).data,
+                    "data": ProfileSerializer(profile).data,
                 })
             else:
                 return Response({
@@ -370,6 +393,31 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "profile not found"
             })
+    @action(detail=False,
+            methods=['post'])
+    def edit_admin_profile(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # edited attributes
+                return Response({
+                    'status': "success",
+                    "message": "profile edited successfully",
+                    "data": ProfileSerializer(profile).data,
+                })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+        
 
 class PositionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Position.objects.all()
@@ -397,6 +445,105 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'Error getting position list'
             })
+    @action(detail=False,
+            methods=['post'])
+    def create_position(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # check if position does not exist
+                position = Position.objects.get(title=title)
+                if position is not None:
+                    return Response({
+                        'status': "error",
+                        "message": "position already exists!"
+                    })
+                else:
+                    new_pos = Position.objects.create(title=title)  
+                    return Response({
+                        'status': "success",
+                        "message": "position created sucessfully",
+                        "data": PositionSerializer(new_pos).data,
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def edit_position(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    position = Position.objects.get(id=id)
+                    position.title = title
+                    position.save()
+                    return Response({
+                        'status': "success",
+                        "message": "position edited sucessfully",
+                        "data": PositionSerializer(position).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"position  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_position(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    position = Position.objects.get(id=id)
+                    position.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"position \'{position.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"position  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+    
 
 class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Department.objects.all()
@@ -424,4 +571,232 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'Error getting department list'
             })
-    
+    @action(detail=False,
+            methods=['post'])
+    def create_department(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # check if position does not exist
+                department = Department.objects.get(title=title)
+                if department is not None:
+                    return Response({
+                        'status': "error",
+                        "message": "department already exists!"
+                    })
+                else:
+                    new_dep = Department.objects.create(title=title)  
+                    return Response({
+                        'status': "success",
+                        "message": "department created sucessfully",
+                        "data": DepartmentSerializer(new_dep).data,
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def edit_department(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    department = Department.objects.get(id=id)
+                    department.title = title
+                    department.save()
+                    return Response({
+                        'status': "success",
+                        "message": "department edited sucessfully",
+                        "data": DepartmentSerializer(department).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"department  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_department(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    department = Department.objects.get(id=id)
+                    department.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"department \'{department.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"department  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+
+class BankViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Bank.objects.all()
+    serializer_class = BankSerializer
+    permission_classes = [AllowAny]
+    # to get all banks to includ in registration form data
+    @action(detail=False,
+            methods=['get'])
+    def get_banks(self, request, *args, **kwargs):
+        try:
+            banks = Bank.objects.all()
+            if banks.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [BankSerializer(bank).data for bank in banks],
+                    'message': 'bank list retrieved'
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No bank found'
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting bank list'
+            })
+    @action(detail=False,
+            methods=['post'])
+    def create_bank(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        name = request.data.get('bank_name')
+        code = request.data.get('bank_code')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # check if position does not exist
+                bank = Bank.objects.get(bank_name=name, bank_code=code)
+                if bank is not None:
+                    return Response({
+                        'status': "error",
+                        "message": "bank already exists!"
+                    })
+                else:
+                    new_bank = Bank.objects.create(bank_name=name, bank_code=code)  
+                    return Response({
+                        'status': "success",
+                        "message": "bank created sucessfully",
+                        "data": BankSerializer(new_bank).data,
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def edit_bank(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        name = request.data.get('bank_name')
+        code = request.data.get('bank_code')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    bank = Bank.objects.get(id=id)
+                    if name is not None:
+                        bank.bank_name = name
+                        bank.save()
+                    if code is not None:
+                        bank.bank_code = code
+                        bank.save()
+                    return Response({
+                        'status': "success",
+                        "message": "bank edited sucessfully",
+                        "data": BankSerializer(bank).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"bank with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_bank(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    bank = Bank.objects.get(id=id)
+                    bank.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"bank \'{bank.bank_name}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"bank  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })

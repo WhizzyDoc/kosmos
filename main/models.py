@@ -28,6 +28,7 @@ class Profile(models.Model):
     middle_name = models.CharField(max_length=100, null=True, blank=True)
     last_name = models.CharField(max_length=100, null=True, blank=True)
     email = models.EmailField(blank=True, null=True)
+    image = models.ImageField(blank=True, null=True, upload_to="profile/image/")
     date_of_birth = models.DateField(blank=True, null=True)
     appointment_date = models.DateField(blank=True, null=True)
     address = models.CharField(max_length=500, blank=True)
@@ -35,7 +36,7 @@ class Profile(models.Model):
     phone_number = models.CharField(max_length=100, null=True, blank=True)
     position = models.ForeignKey(Position, on_delete=models.DO_NOTHING, null=True, blank=True)
     department = models.ForeignKey(Department, on_delete=models.DO_NOTHING, null=True, blank=True)
-    id_no = models.CharField(max_length=15, unique=True, verbose_name="ID Number", blank=True, null=True) #You could remove this if its not necessary
+    id_no = models.CharField(max_length=15, unique=True, verbose_name="ID Number", blank=True, null=True ) #You could remove this if its not necessary
     salary = models.DecimalField(decimal_places=2, max_digits=15, default=0.00, blank=True, null=True)
     is_premium_user = models.BooleanField(default=False)
     api_token = models.CharField(max_length=250, null=True, blank=True)
