@@ -54,9 +54,20 @@ class ProfileSerializer(serializers.ModelSerializer):
         
 class EventSerializer(serializers.ModelSerializer):
     organizer = ProfileSerializer(many=False, read_only=True)
+    invitees = ProfileSerializer(many=True, read_only=True)
+    attending = ProfileSerializer(many=True, read_only=True)
     class Meta:
         model = Event
-        fields = ['id', 'organizer', 'title', 'description', 'date', 'type', 'location', 'link', 'directions']
+        fields = ['id', 'organizer', 'title', 'description', 'date', 'type', 'location', 'link', 'invitation', 'directions',
+                  'invitees', 'attending']
+
+class MeetingSerializer(serializers.ModelSerializer):
+    department = DepartmentSerializer(many=False, read_only=True)
+    members = PositionSerializer(many=True, read_only=True)
+    attended_by = PositionSerializer(many=True, read_only=True)
+    class Meta:
+        model = Meeting
+        fields = ['id', 'title', 'description', 'date', 'departments', 'members', 'attended_by']
 
 class NewsSerializer(serializers.ModelSerializer):
     author = ProfileSerializer(many=False, read_only=True)
@@ -65,7 +76,18 @@ class NewsSerializer(serializers.ModelSerializer):
         model = News
         fields = ['id', 'author', 'title', 'slug', 'category', 'date', 'active', 'verified', 'post']
 
-class RewardsSerializer(serializers.ModelSerializer):
+class RewardSerializer(serializers.ModelSerializer):
+    owner = ProfileSerializer(many=False, read_only=True)
     class Meta:
-        model = Rewards
-        fields = ['id', 'name', 'reward_type']
+        model = Reward
+        fields = ['id', 'owner', 'description']
+
+class TaskSerializer(serializers.ModelSerializer):
+    created_by = ProfileSerializer(many=False, read_only=True)
+    reward = RewardSerializer(many=False, read_only=True)
+    assigned_to = ProfileSerializer(many=True, read_only=True)
+    completed_by = ProfileSerializer(many=True, read_only=True)
+    class Meta:
+        model = Task
+        fields = ['id', 'title', 'description', 'created_by', 'file', 'type', 'reward', 'assigned_to',
+                  'completed', 'completed_by']

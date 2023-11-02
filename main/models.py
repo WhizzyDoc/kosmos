@@ -65,6 +65,24 @@ class BankAccount(models.Model):
 
 
 
-class Rewards(models.Model):
-    name = models.ForeignKey(Profile, on_delete=models.PROTECT) 
-    reward_type = models.CharField(max_length=100)
+class Reward(models.Model):
+    owner = models.ForeignKey(Profile, on_delete=models.CASCADE) 
+    description = models.TextField(null=True, blank=True)
+    
+class Task(models.Model):
+    title = models.CharField(max_length=250, null=True, blank=True)
+    description = models.TextField(null=True, blank=True)
+    created_by = models.ForeignKey(Profile, related_name="tasks_created", null=True, blank=True, on_delete=models.DO_NOTHING)
+    file = models.FileField(upload_to="tasks/files/", null=True, blank=True)
+    type = models.CharField(max_length=150, choices=(
+        ('general', 'general'),('specific', 'specific')
+    ), null=True, blank=True)
+    reward = models.ForeignKey(Reward, related_name="tasks", null=True, blank=True, on_delete=models.DO_NOTHING)
+    assigned_to = models.ManyToManyField(Profile, related_name="tasks_assigned")
+    completed = models.BooleanField(default=False)
+    completed_by = models.ManyToManyField(Profile, related_name="tasks_completed")
+    date = models.DateTimeField(default=timezone.now)
+    def __str__(self):
+        return str(self.title)
+    class Meta:
+        ordering = ['-date']

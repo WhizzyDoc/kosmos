@@ -1,7 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
-from main.models import Profile
+from main.models import Profile, Department, Position
 from tinymce.models import HTMLField
 
 # Create your models here.
@@ -24,15 +24,30 @@ class Site(models.Model):
 class Event(models.Model):
     organizer = models.ForeignKey(Profile, on_delete=models.CASCADE)  # This is the person who created it
     title = models.CharField(max_length=256)
-    description = HTMLField()
+    description = HTMLField(null=True, blank=True)
     date = models.DateTimeField(default=timezone.now)
     type = models.CharField(max_length=50, choices = (
-        ("online", "online"),
-        ("live", "live")
+        ("open", "open"),
+        ("invitation", "invitation")
     ))
     location = models.CharField(max_length=256, null=True, blank=True) # Can serve for both link and venue
     link = models.URLField(null=True, blank=True)
+    invitation = models.FileField(upload_to="events/invitations/", null=True, blank=True)
     directions = HTMLField(null=True, blank=True) # optional field
+    invitees = models.ManyToManyField(Profile, related_name="event_invited")
+    attending = models.ManyToManyField(Profile, related_name="event_attending")
+    def __str__(self):
+        return str(self.title)
+    class Meta:
+        ordering = ['-date']
+
+class Meeting(models.Model):
+    title = models.CharField(max_length=256)
+    description = HTMLField(null=True, blank=True)
+    departments = models.ManyToManyField(Department, related_name="meetings")
+    members = models.ManyToManyField(Position, related_name="meetings_invited")
+    attended_by = models.ManyToManyField(Position, related_name="meetings_attended")
+    date = models.DateTimeField(default=timezone.now)
     def __str__(self):
         return str(self.title)
     class Meta:

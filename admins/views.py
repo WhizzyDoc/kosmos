@@ -252,7 +252,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                     return Response({
                         'status': 'success',
                         'message': f'Account created successfully. username is {id_no} and password is {f_name}',
-                        'profile': ProfileSerializer(new_profile).data
+                        'data': ProfileSerializer(new_profile).data
                     })
                 except:
                     return Response({
@@ -543,7 +543,6 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "profile not found"
             })
-    
 
 class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Department.objects.all()
@@ -696,6 +695,22 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'Error getting bank list'
             })
+    """
+    @action(detail=False,
+            methods=['get'])
+    def build_bank(self, request, *args, **kwargs):
+        try:
+            for b in bank_list:
+                bank = Bank(bank_name=b['name'], bank_code=b['code'])
+                bank.save()
+            return Response({
+                'status': 'success'
+            })
+        except:
+            return Response({
+                'status': 'error'
+            })
+    """
     @action(detail=False,
             methods=['post'])
     def create_bank(self, request, *args, **kwargs):
@@ -789,6 +804,133 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
                     return Response({
                         "status": "error",
                         "message": f"bank  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+
+class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = NewsCategory.objects.all()
+    serializer_class = NewsCategorySerializer
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_categories(self, request, *args, **kwargs):
+        try:
+            categories = NewsCategory.objects.all()
+            if categories.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [NewsCategorySerializer(cat).data for cat in categories],
+                    'message': 'category list retrieved'
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No categories found'
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting categories list'
+            })
+    @action(detail=False,
+            methods=['post'])
+    def create_category(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        slug = slugify(title)
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # check if category does not exist
+                category = NewsCategory.objects.get(slug=slug)
+                if category is not None:
+                    return Response({
+                        'status': "error",
+                        "message": "category already exists!"
+                    })
+                else:
+                    new_cat = NewsCategory.objects.create(title=title, slug=slug)  
+                    return Response({
+                        'status': "success",
+                        "message": "category created sucessfully",
+                        "data": NewsCategorySerializer(new_cat).data,
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def edit_category(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        slug = slugify(title)
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    category = NewsCategory.objects.get(id=id)
+                    category.title = title
+                    category.slug = slug
+                    category.save()
+                    return Response({
+                        'status': "success",
+                        "message": "category edited sucessfully",
+                        "data": NewsCategorySerializer(category).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"category  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "profile not found"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_category(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    category = NewsCategory.objects.get(id=id)
+                    category.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"category \'{category.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"category  with id \'{id}\' does not exist"
                     })
             else:
                 return Response({

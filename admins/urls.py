@@ -8,6 +8,7 @@ router.register('profile', views.ProfileViewSet)
 router.register('departments', views.DepartmentViewSet)
 router.register('positions', views.PositionViewSet)
 router.register('banks', views.BankViewSet)
+router.register('news_categories', views.NewsCategoryViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -16,8 +16,8 @@ class BankAccountAdmin(admin.ModelAdmin):
     list_editable = ['bank']
     list_per_page = 20
 
-
 admin.site.register(Position)
 admin.site.register(Department)
 admin.site.register(Bank)
-admin.site.register(Rewards)
+admin.site.register(Reward)
+admin.site.register(Task)

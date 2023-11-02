@@ -13,6 +13,11 @@ class EventAdmin(admin.ModelAdmin):
     list_editable = ['type']
     list_per_page = 20
 
+@admin.register(Meeting)
+class MeetingAdmin(admin.ModelAdmin):
+    list_display = ['title', 'date']
+    list_per_page = 20
+
 @admin.register(News)
 class NewsAdmin(admin.ModelAdmin):
     list_display = ['author', 'title', 'category', 'date', 'active', 'verified']
