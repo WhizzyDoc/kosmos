@@ -316,54 +316,60 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         image = request.FILES.get('image')
         #id_no = ''
         # check if post email data is valid
-        if is_valid_email(email):
-            profile = Profile.objects.get(email=email)
-            if profile is not None:
-                # get the position and department models from their given id
-                if position is not None and str(position) != '':
-                    try:
-                        p = Position.objects.get(id=int(position))
-                        profile.position = p
-                        profile.save()
-                    except:
-                        return Response({
-                            'status': 'error',
-                            'message': 'Invalid id for position'
-                        })
-                if department is not None and str(department) != '':
-                    try:
-                        d = Department.objects.get(id=int(department))
-                        profile.department = d
-                        profile.save()
-                    except:
-                        return Response({
-                            'status': 'error',
-                            'message': 'Invalid id for department'
-                        })
-                profile.title = title
-                profile.date_of_birth = dob
-                profile.middle_name = m_name
-                profile.appointment_date = a_date
-                profile.address = address
-                profile.nationality = nationality
-                profile.phone_number = phone_number
-                profile.salary = salary
-                profile.image = image
-                profile.save()
-                return Response({
-                    'status': 'success',
-                    'data': ProfileSerializer(profile).data,
-                    'message': 'User registration succesful!'
-                })
+        try:
+            if is_valid_email(email):
+                profile = Profile.objects.get(email=email)
+                if profile is not None:
+                    # get the position and department models from their given id
+                    if position is not None and str(position) != '':
+                        try:
+                            p = Position.objects.get(id=int(position))
+                            profile.position = p
+                            profile.save()
+                        except:
+                            return Response({
+                                'status': 'error',
+                                'message': 'Invalid id for position'
+                            })
+                    if department is not None and str(department) != '':
+                        try:
+                            d = Department.objects.get(id=int(department))
+                            profile.department = d
+                            profile.save()
+                        except:
+                            return Response({
+                                'status': 'error',
+                                'message': 'Invalid id for department'
+                            })
+                    profile.title = title
+                    profile.date_of_birth = dob
+                    profile.middle_name = m_name
+                    profile.appointment_date = a_date
+                    profile.address = address
+                    profile.nationality = nationality
+                    profile.phone_number = phone_number
+                    profile.salary = salary
+                    profile.image = image
+                    profile.save()
+                    return Response({
+                        'status': 'success',
+                        'data': ProfileSerializer(profile).data,
+                        'message': 'User registration succesful!'
+                    })
+                else:
+                    return Response({
+                        'status': 'error',
+                        'message': f'user not found for email {email}'
+                    })
             else:
                 return Response({
                     'status': 'error',
-                    'message': f'user not found for email {email}'
+                    'message': f'Invalid email'
                 })
-        else:
+        except:
             return Response({
                 'status': 'error',
-                'message': f'Invalid email'
+                'message': f'Error while registering account'
             })
                 
                 
@@ -381,7 +387,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                     return Response({
                         'status': "success",
                         "message": "login successful",
-                        "profile": ProfileSerializer(profile).data,
+                        "data": ProfileSerializer(profile).data,
                     })
                 else:
                     return Response({
@@ -419,7 +425,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
     @action(detail=False,
             methods=['post'])
@@ -443,7 +449,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
         
 
@@ -504,7 +510,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
     @action(detail=False,
             methods=['post'])
@@ -538,7 +544,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
     @action(detail=False,
             methods=['post'])
@@ -569,7 +575,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
 
 class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
@@ -629,7 +635,7 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
     @action(detail=False,
             methods=['post'])
@@ -663,7 +669,7 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
     @action(detail=False,
             methods=['post'])
@@ -694,7 +700,7 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
 
 class BankViewSet(viewsets.ReadOnlyModelViewSet):
