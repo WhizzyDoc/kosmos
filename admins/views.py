@@ -118,10 +118,10 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             })
             
     @action(detail=False,
-            methods=['post'],
-            authentication_classes = [BasicAuthentication])
+            methods=['post'])
     def create_site_info(self, request, *args, **kwargs):
         if request.method == 'POST':
+            api_token = request.data.get('api_token')
             title = request.data.get('title')
             tagline = request.data.get('tagline')
             about = request.data.get('about')
@@ -131,32 +131,46 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             if request.FILES:
                 logo = request.FILES.get('logo')
             try:
-                sites = Site.objects.all()
-                if sites.exists():
-                    for s in sites:
-                        s.delete()
-                new_site = Site(title=title, tagline=tagline, logo=logo, about=about, objectives=objectives, mission=mission)
-                new_site.save()
-                return Response({
-                    'status': 'success',
-                    'message': 'site info created sucessfully',
-                    'data': SiteSerializer(new_site).data
-                })
+                profile = Profile.objects.get(api_token=api_token)
+                user = profile.user
+                if admin_group in user.groups.all():
+                    try:
+                        sites = Site.objects.all()
+                        if sites.exists():
+                            for s in sites:
+                                s.delete()
+                        new_site = Site(title=title, tagline=tagline, logo=logo, about=about, objectives=objectives, mission=mission)
+                        new_site.save()
+                        return Response({
+                            'status': 'success',
+                            'message': 'site info created sucessfully',
+                            'data': SiteSerializer(new_site).data
+                        })
+                    except:
+                        return Response({
+                            'status': 'error',
+                            'message': 'error while creating site info'
+                        })
+                else:
+                    return Response({
+                        'status': 'error',
+                        'message': 'user not authorized'
+                    })
             except:
                 return Response({
                     'status': 'error',
-                    'message': 'error while creating site info'
-                })
+                    'message': 'user not found'
+                })  
         else:
             return Response({
                 'status': 'error',
                 'message': 'GET method not allowed'
             })
     @action(detail=False,
-            methods=['post'],
-            authentication_classes = [BasicAuthentication])
+            methods=['post'])
     def edit_site_info(self, request, *args, **kwargs):
         if request.method == 'POST':
+            api_token = request.data.get('api_token')
             title = request.data.get('title')
             tagline = request.data.get('tagline')
             about = request.data.get('about')
@@ -164,41 +178,55 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             mission = request.data.get('mission')
             logo = request.FILES.get('logo')
             try:
-                sites = Site.objects.all()
-                if sites.exists():
-                    site = Site.objects.first()
-                    if title:
-                        site.title = title
-                        site.save()
-                    if tagline:
-                        site.tagline = tagline
-                        site.save()
-                    if about:
-                        site.about = about
-                        site.save()
-                    if objectives:
-                        site.objectives = objectives
-                        site.save()
-                    if mission:
-                        site.mission = mission
-                        site.save()
-                    if logo:
-                        site.logo = logo
-                        site.save()
-                    return Response({
-                        'status': 'success',
-                        'message': 'site info edited successfully',
-                        'data': SiteSerializer(site).data
-                    })
+                profile = Profile.objects.get(api_token=api_token)
+                user = profile.user
+                if admin_group in user.groups.all():
+                    try:
+                        sites = Site.objects.all()
+                        if sites.exists():
+                            site = Site.objects.first()
+                            if title:
+                                site.title = title
+                                site.save()
+                            if tagline:
+                                site.tagline = tagline
+                                site.save()
+                            if about:
+                                site.about = about
+                                site.save()
+                            if objectives:
+                                site.objectives = objectives
+                                site.save()
+                            if mission:
+                                site.mission = mission
+                                site.save()
+                            if logo:
+                                site.logo = logo
+                                site.save()
+                            return Response({
+                                'status': 'success',
+                                'message': 'site info edited successfully',
+                                'data': SiteSerializer(site).data
+                            })
+                        else:
+                            return Response({
+                                'status': 'error',
+                                'message': 'site info not found'
+                            })
+                    except:
+                        return Response({
+                            'status': 'error',
+                            'message': 'error occured'
+                        })
                 else:
                     return Response({
                         'status': 'error',
-                        'message': 'site info not found'
+                        'message': 'user not authorized'
                     })
             except:
                 return Response({
                     'status': 'error',
-                    'message': 'error occured'
+                    'message': 'user not found'
                 })
         else:
             return Response({
