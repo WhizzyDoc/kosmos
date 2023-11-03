@@ -1,0 +1,12 @@
+### Signin View
+POST http://127.0.0.1:8000/api/v2/login
+Content-Type: application/json
+
+{"username": "Admin", "password": "Kosmos"}
+
+
+###
+PUT http://127.0.0.1:8000/api/v2/profile/6s0gjrqr61xrrt7omzo8lmp4vo0dsgwamlzvoa7ygxsw8ledxadfp68ygjtr
+Content-Type: application/json
+
+{"first_name": "Mayowa"}
