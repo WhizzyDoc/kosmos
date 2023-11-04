@@ -6,12 +6,12 @@ from django.contrib.auth.models import User
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'is_superuser', 'is_active']
+        fields = ['id', 'username']
 
 class SiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Site
-        fields = ['title', 'tagline', 'logo', 'about', 'objectives', 'mission', 'last_modified']
+        fields = ['title', 'tagline', 'company_email', 'logo', 'about', 'objectives', 'mission', 'last_modified']
 
 class PositionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -33,13 +33,6 @@ class BankSerializer(serializers.ModelSerializer):
         model = Bank
         fields = ['id', 'bank_name', 'bank_code']
 
-class BankAccountSerializer(serializers.ModelSerializer):
-    user = UserSerializer(many=False, read_only=True)
-    bank = BankSerializer(many=False, read_only=True)
-    class Meta:
-        model = BankAccount
-        fields = ['id', 'user', 'bank', 'account_number', 'account_name']
-
 
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(many=False, read_only=True)
@@ -51,18 +44,29 @@ class ProfileSerializer(serializers.ModelSerializer):
                   'address', 'appointment_date', 'position', 'department', 'id_no', 'salary', 'is_premium_user', 'image',
                   'api_token']
 
+class EmployeeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = ['id', 'id_no', 'first_name', 'last_name', 'email']
+
+class BankAccountSerializer(serializers.ModelSerializer):
+    user = EmployeeSerializer(many=False, read_only=True)
+    bank = BankSerializer(many=False, read_only=True)
+    class Meta:
+        model = BankAccount
+        fields = ['id', 'user', 'bank', 'account_number', 'account_name']
         
 class EventSerializer(serializers.ModelSerializer):
     organizer = ProfileSerializer(many=False, read_only=True)
-    invitees = ProfileSerializer(many=True, read_only=True)
-    attending = ProfileSerializer(many=True, read_only=True)
+    invitees = EmployeeSerializer(many=True, read_only=True)
+    attending = EmployeeSerializer(many=True, read_only=True)
     class Meta:
         model = Event
         fields = ['id', 'organizer', 'title', 'description', 'date', 'type', 'location', 'link', 'invitation', 'directions',
                   'invitees', 'attending']
 
 class MeetingSerializer(serializers.ModelSerializer):
-    department = DepartmentSerializer(many=False, read_only=True)
+    departments = DepartmentSerializer(many=True, read_only=True)
     members = PositionSerializer(many=True, read_only=True)
     attended_by = PositionSerializer(many=True, read_only=True)
     class Meta:
@@ -70,7 +74,7 @@ class MeetingSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'description', 'date', 'departments', 'members', 'attended_by']
 
 class NewsSerializer(serializers.ModelSerializer):
-    author = ProfileSerializer(many=False, read_only=True)
+    author = EmployeeSerializer(many=False, read_only=True)
     category = NewsCategorySerializer(many=False, read_only=True)
     class Meta:
         model = News
@@ -83,11 +87,18 @@ class RewardSerializer(serializers.ModelSerializer):
         fields = ['id', 'owner', 'description']
 
 class TaskSerializer(serializers.ModelSerializer):
-    created_by = ProfileSerializer(many=False, read_only=True)
+    created_by = EmployeeSerializer(many=False, read_only=True)
     reward = RewardSerializer(many=False, read_only=True)
-    assigned_to = ProfileSerializer(many=True, read_only=True)
-    completed_by = ProfileSerializer(many=True, read_only=True)
+    assigned_to = EmployeeSerializer(many=True, read_only=True)
+    completed_by = EmployeeSerializer(many=True, read_only=True)
     class Meta:
         model = Task
         fields = ['id', 'title', 'description', 'created_by', 'file', 'type', 'reward', 'assigned_to',
                   'completed', 'completed_by']
+
+class ComplaintSerializer(serializers.ModelSerializer):
+    employee = EmployeeSerializer(many=False, read_only=True)
+    class Meta:
+        model = Complaint
+        fields = ['id', 'title', 'complaint', 'proposed_solution', 'addressed', 'solution',
+                  'date', 'employee']

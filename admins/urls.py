@@ -9,6 +9,13 @@ router.register('departments', views.DepartmentViewSet)
 router.register('positions', views.PositionViewSet)
 router.register('banks', views.BankViewSet)
 router.register('news_categories', views.NewsCategoryViewSet)
+router.register('news', views.NewsViewSet)
+router.register('employees', views.EmployeeViewSet)
+router.register('meetings', views.MeetingViewSet)
+router.register('events', views.EventViewSet)
+router.register('bank_accounts', views.BankAccountViewSet)
+router.register('tasks', views.TaskViewSet)
+router.register('complaints', views.ComplaintViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -125,6 +125,7 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             title = request.data.get('title')
             tagline = request.data.get('tagline')
             about = request.data.get('about')
+            email = request.data.get("email")
             objectives = request.data.get('objectives')
             mission = request.data.get('mission')
             logo = None
@@ -135,15 +136,18 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
                 user = profile.user
                 if admin_group in user.groups.all():
                     try:
-                        sites = Site.objects.all()
-                        if sites.exists():
-                            for s in sites:
-                                s.delete()
-                        new_site = Site(title=title, tagline=tagline, logo=logo, about=about, objectives=objectives, mission=mission)
+                        site = Site.objects.first()
+                        if site is not None:
+                            return Response({
+                                'status': 'error',
+                                'message': 'site already exists, edit site info instead'
+                            })
+                        new_site = Site(title=title, tagline=tagline, logo=logo, about=about, objectives=objectives,
+                                        mission=mission, company_email=email)
                         new_site.save()
                         return Response({
                             'status': 'success',
-                            'message': 'site info created sucessfully',
+                            'message': 'site created sucessfully',
                             'data': SiteSerializer(new_site).data
                         })
                     except:
@@ -174,6 +178,7 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             title = request.data.get('title')
             tagline = request.data.get('tagline')
             about = request.data.get('about')
+            email = request.data.get("email")
             objectives = request.data.get('objectives')
             mission = request.data.get('mission')
             logo = request.FILES.get('logo')
@@ -187,6 +192,9 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
                             site = Site.objects.first()
                             if title:
                                 site.title = title
+                                site.save()
+                            if email:
+                                site.company_email = email
                                 site.save()
                             if tagline:
                                 site.tagline = tagline
@@ -240,11 +248,75 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
     @action(detail=False,
             methods=['post'])
-    def create_account(self, request, *args, **kwargs):
+    def create_admin_account(self, request, *args, **kwargs):
         email = request.data.get('email')
         f_name = request.data.get('first_name')
         l_name = request.data.get('last_name')
+        m_name = request.data.get('middle_name')
+        nationality = request.data.get('nationality')
+        phone_number = request.data.get('phone_number')
+        image = request.FILES.get('image')
+        username = request.data.get('username')
+        password = request.data.get('password')
+        #check if email is valid
+        if not is_valid_email(email):
+            return Response({
+                'status': 'error',
+                'message': f"Invalid email",
+            })
+        if not is_valid_username(username):
+            return Response({
+                'status': 'error',
+                'message': f"Invalid username",
+            })
+        if not is_valid_password(password):
+            return Response({
+                'status': 'error',
+                'message': f"Invalid password",
+            })
+        try:
+            new_user = User.objects.create(email=email, first_name=f_name, last_name=l_name, username=username, is_superuser=True)
+            new_user.set_password(password)
+            new_user.save()
+            new_user.groups.add(admin_group)
+            new_user.save()
+            try:
+                api_key = generate_token()
+                # create a new profile
+                new_profile = Profile(user=new_user, email=email, first_name=f_name, last_name=l_name, api_token=api_key,
+                                      middle_name=m_name, nationality=nationality, phone_number=phone_number, image=image)
+                new_profile.save()
+                return Response({
+                        'status': 'success',
+                        'message': f'Admin account created successfully',
+                        'data': ProfileSerializer(new_profile).data
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': f'Admin account created, Error generating profile',
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': f'Error occured while creating account',
+            })
+        
+        
+    @action(detail=False,
+            methods=['post'])
+    def create_employee_account(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        title = request.data.get('title')
+        f_name = request.data.get('first_name')
+        l_name = request.data.get('last_name')
+        m_name = request.data.get('middle_name')
+        nationality = request.data.get('nationality')
+        phone_number = request.data.get('phone_number')
         a_type = request.data.get('account_type')
+        salary = request.data.get('salary')
+        position = request.data.get('position')
+        department = request.data.get('department')
         # check if email is valid (view.py line 49)
         if is_valid_email(email):
             emails = []
@@ -262,11 +334,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                     id_no = generate_id(new_user.id)
                     new_user.username = id_no
                     new_user.save()
-                    if a_type == 'admin':
-                        new_user.groups.add(admin_group)
-                        new_user.is_superuser = True
-                        new_user.save()
-                    elif a_type == 'staff':
+                    if a_type == 'staff':
                         new_user.groups.add(staff_group)
                         new_user.save()
                     elif a_type == 'employee':
@@ -275,8 +343,30 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                     # creates a new API key for user instance
                     api_key = generate_token()
                     # create a new profile
-                    new_profile = Profile(user=new_user, email=email, id_no=id_no, first_name=f_name, last_name=l_name, api_token=api_key)
+                    new_profile = Profile(user=new_user, email=email, id_no=id_no, first_name=f_name, last_name=l_name,
+                                          api_token=api_key, middle_name=m_name, nationality=nationality, phone_number=phone_number,
+                                          salary=salary, title=title)
                     new_profile.save()
+                    if position is not None and str(position) != '':
+                        try:
+                            p = Position.objects.get(id=int(position))
+                            new_profile.position = p
+                            new_profile.save()
+                        except:
+                            return Response({
+                                'status': 'error',
+                                'message': 'Invalid id for position'
+                            })
+                    if department is not None and str(department) != '':
+                        try:
+                            d = Department.objects.get(id=int(department))
+                            new_profile.department = d
+                            new_profile.save()
+                        except:
+                            return Response({
+                                'status': 'error',
+                                'message': 'Invalid id for department'
+                            })
                     return Response({
                         'status': 'success',
                         'message': f'Account created successfully. username is {id_no} and password is {f_name}',
@@ -303,16 +393,9 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
             methods=['post'])
     def register(self, request, *args, **kwargs):
         email = request.data.get('email')
-        title = request.data.get('title')
-        m_name = request.data.get('middle_name')
         dob = request.data.get('date_of_birth')
         a_date = request.data.get('appointment_date')
         address = request.data.get('address')
-        nationality = request.data.get('nationality')
-        phone_number = request.data.get('phone_number')
-        position = request.data.get('position')
-        department = request.data.get('department')
-        salary = request.data.get('salary')
         image = request.FILES.get('image')
         #id_no = ''
         # check if post email data is valid
@@ -320,35 +403,9 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
             if is_valid_email(email):
                 profile = Profile.objects.get(email=email)
                 if profile is not None:
-                    # get the position and department models from their given id
-                    if position is not None and str(position) != '':
-                        try:
-                            p = Position.objects.get(id=int(position))
-                            profile.position = p
-                            profile.save()
-                        except:
-                            return Response({
-                                'status': 'error',
-                                'message': 'Invalid id for position'
-                            })
-                    if department is not None and str(department) != '':
-                        try:
-                            d = Department.objects.get(id=int(department))
-                            profile.department = d
-                            profile.save()
-                        except:
-                            return Response({
-                                'status': 'error',
-                                'message': 'Invalid id for department'
-                            })
-                    profile.title = title
                     profile.date_of_birth = dob
-                    profile.middle_name = m_name
                     profile.appointment_date = a_date
                     profile.address = address
-                    profile.nationality = nationality
-                    profile.phone_number = phone_number
-                    profile.salary = salary
                     profile.image = image
                     profile.save()
                     return Response({
@@ -907,7 +964,7 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
     @action(detail=False,
             methods=['post'])
@@ -943,7 +1000,7 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "invalid API token"
             })
     @action(detail=False,
             methods=['post'])
@@ -974,5 +1031,380 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
         except:
             return Response({
                 'status': "error",
-                "message": "profile not found"
+                "message": "Invalid API token"
             })
+
+class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileSerializer
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_employees(self, request, *args, **kwargs):
+        dept_filter = self.request.query_params.get('department_id')
+        if dept_filter:
+            try:
+                dept = Department.objects.get(id=int(dept_filter))
+                employees = Profile.objects.exclude(user__groups=admin_group).filter(department=dept)
+                if employees.exists():
+                    return Response({
+                        "status": "success",
+                        "message": "employee list retrieved",
+                        "data": [ProfileSerializer(emp).data for emp in employees]
+                    })
+                else:
+                    return Response({
+                        "status": "success",
+                        "message": "No employee added"
+                    })
+            except:
+                return Response({
+                    "status": "error",
+                    "message": "Invalid id for department"
+                })
+        else:
+            try:
+                employees = Profile.objects.all().exclude(user__groups=admin_group)
+                if employees.exists():
+                    return Response({
+                        "status": "success",
+                        "message": "employee list retrieved",
+                        "data": [ProfileSerializer(emp).data for emp in employees]
+                    })
+                else:
+                    return Response({
+                        "status": "success",
+                        "message": "No employee added"
+                    })
+            except:
+                return Response({
+                    "status": "error",
+                    "message": "error while getting employee list"
+                })
+    @action(detail=False,
+            methods=['get'])
+    def search_employee(self, request, *args, **kwargs):
+        query = self.request.query_params.get('search')
+        if query and query != "":
+            try:
+                results = Profile.objects.filter(Q(first_name__icontains=query) | Q(middle_name__icontains=query) |
+                                       Q(last_name__icontains=query) | Q(email__icontains=query) |
+                                       Q(phone_number__icontains=query) | Q(id_no__icontains=query))
+                if results.exists():
+                    return Response({
+                        "status": "success",
+                        "message": f"result found for \'{query}\'",
+                        "data": [ProfileSerializer(res).data for res in results]
+                    })
+                else:
+                    return Response({
+                        "status": "success",
+                        "message": f"No result found for \'{query}\'"
+                    })
+            except:
+                    return Response({
+                        "status": "error",
+                        "message": f"Error while getting search results"
+                    })
+        else:
+            return Response({
+                "status": "error",
+                "message": f"Invalid search query"
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_employee(self, request, *args, **kwargs):
+        query = self.request.query_params.get('employee_id')
+        if query and query != "":
+            try:
+                employee = Profile.objects.get(id_no=query)
+                if employee is not None:
+                    return Response({
+                        'status': 'success',
+                        'message': 'employee details retrieved',
+                        'data': ProfileSerializer(employee).data
+                    })
+                else:
+                    return Response({
+                        'status': 'error',
+                        'message': 'invalid ID number'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'invalid ID number'
+                })
+        else:
+            return Response({
+                'status': 'error',
+                'message': 'invalid ID number'
+            })
+     
+class NewsViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = News.objects.all()
+    serializer_class = NewsSerializer
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_news(self, request, *args, **kwargs):
+        id = self.request.query_params.get('news_id')
+        if id:
+            try:
+                news = News.objects.get(id=int(id))
+                if news is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': NewsSerializer(news).data,
+                        'message': 'news details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid news ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid news ID'
+                })
+        else:
+            try:
+                news = News.objects.all()
+                if news.exists():
+                    return Response({
+                        'status': 'success',
+                        'data': [NewsSerializer(ne).data for ne in news],
+                        'message': 'news list retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'No news found'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Error getting news list'
+                })
+
+class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Meeting.objects.all()
+    serializer_class = MeetingSerializer
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_meetings(self, request, *args, **kwargs):
+        try:
+            meetings = Meeting.objects.all()
+            if meetings.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [MeetingSerializer(ne).data for ne in meetings],
+                    'message': 'meeting list retrieved'
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No meeting found'
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting meeting list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_meeting(self, request, *args, **kwargs):
+        id = self.request.query_params.get('meeting_id')
+        if id:
+            try:
+                meeting = Meeting.objects.get(id=int(id))
+                if meeting is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': MeetingSerializer(meeting).data,
+                        'message': 'meeting details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid meeting ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid meeting ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid meeting ID'
+            })
+
+class EventViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Event.objects.all()
+    serializer_class = EventSerializer
+    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_events(self, request, *args, **kwargs):
+        try:
+            events = Event.objects.all()
+            if events.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [EventSerializer(ne).data for ne in events],
+                    'message': 'event list retrieved'
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No event found'
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting event list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_event(self, request, *args, **kwargs):
+        id = self.request.query_params.get('event_id')
+        if id:
+            try:
+                event = Event.objects.get(id=int(id))
+                if event is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': EventSerializer(event).data,
+                        'message': 'event details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid event ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid event ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid event ID'
+            })
+    
+class TaskViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Task.objects.all()
+    serializer_class = TaskSerializer
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_tasks(self, request, *args, **kwargs):
+        try:
+            tasks = Task.objects.all()
+            if tasks.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [TaskSerializer(ne).data for ne in tasks],
+                    'message': 'task list retrieved'
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No task found'
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting task list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_task(self, request, *args, **kwargs):
+        id = self.request.query_params.get('task_id')
+        if id:
+            try:
+                task = Task.objects.get(id=int(id))
+                if task is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': TaskSerializer(task).data,
+                        'message': 'task details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid task ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid task ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid task ID'
+            })
+
+class ComplaintViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Complaint.objects.all()
+    serializer_class = ComplaintSerializer
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_complaints(self, request, *args, **kwargs):
+        try:
+            complaints = Complaint.objects.all()
+            if complaints.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [ComplaintSerializer(ne).data for ne in complaints],
+                    'message': 'complaint list retrieved'
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No complaint found'
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting complaint list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_complaint(self, request, *args, **kwargs):
+        id = self.request.query_params.get('complaint_id')
+        if id:
+            try:
+                complaint = Complaint.objects.get(id=int(id))
+                if complaint is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': ComplaintSerializer(complaint).data,
+                        'message': 'complaint details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid complaint ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid complaint ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid complaint ID'
+            })
+
+class BankAccountViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = BankAccount.objects.all()
+    serializer_class = BankAccountSerializer
+    permission_classes = [AllowAny]

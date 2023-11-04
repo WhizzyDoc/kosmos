@@ -11,6 +11,7 @@ class Site(models.Model):
     logo = models.ImageField(upload_to="site/logo/", null=True, blank=True)
     about = HTMLField(null=True, blank=True, verbose_name="About Organization")
     objectives = HTMLField(null=True, blank=True)
+    company_email = models.EmailField(blank=True, null=True)
     mission = HTMLField(null=True, blank=True)
     created = models.DateTimeField(default=timezone.now)
     last_modified = models.DateTimeField(auto_now=True, null=True)
@@ -44,9 +45,9 @@ class Event(models.Model):
 class Meeting(models.Model):
     title = models.CharField(max_length=256)
     description = HTMLField(null=True, blank=True)
-    departments = models.ManyToManyField(Department, related_name="meetings")
-    members = models.ManyToManyField(Position, related_name="meetings_invited")
-    attended_by = models.ManyToManyField(Position, related_name="meetings_attended")
+    departments = models.ManyToManyField(Department, related_name="meetings", blank=True)
+    members = models.ManyToManyField(Position, related_name="meetings_invited", blank=True)
+    attended_by = models.ManyToManyField(Position, related_name="meetings_attended", blank=True)
     date = models.DateTimeField(default=timezone.now)
     def __str__(self):
         return str(self.title)
@@ -68,7 +69,7 @@ class News(models.Model):
     slug = models.SlugField(unique=True, null=True, blank=True)
     post = HTMLField()
     date = models.DateTimeField(default=timezone.now)
-    category = models.ForeignKey(NewsCategory, on_delete=models.DO_NOTHING, related_name="news", choices=()) 
+    category = models.ForeignKey(NewsCategory, on_delete=models.DO_NOTHING, related_name="news", null=True, blank=True) 
     active = models.BooleanField(default=True)
     verified = models.BooleanField(default=False)
     def __str__(self):
