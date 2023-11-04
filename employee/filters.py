@@ -9,7 +9,7 @@ class ProfileFilter(django_filters.FilterSet):
             'title': ['exact', 'icontains'],
             'salary': ['exact', 'icontains'],
             'nationality': ['exact', 'icontains'],
-            'position': ['exact', 'icontains'],
-            'department': ['exact', 'icontains'],
+            'position': ['exact'],
+            'department': ['exact'],
             'is_premium_user': ['exact', 'icontains'],
         }
