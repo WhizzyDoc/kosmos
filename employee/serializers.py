@@ -3,6 +3,7 @@ from rest_framework.serializers import ModelSerializer
 from main.models import Profile, BankAccount, Bank
 from rest_framework.validators import ValidationError
 from rest_framework import serializers
+from admins.models import Event
 class ProfileSerializer(ModelSerializer):
     class Meta:
         model = Profile
@@ -88,3 +89,19 @@ class BankAccountUpdateSerializer(ModelSerializer):
         
         return Bank.objects.get(bank_name=bank_name).id
 
+class EventSerializer(ModelSerializer):
+    # invitees = serializers.ListField(child=serializers.CharField(), required=False)  # Make invitees not required
+
+    class Meta:
+        model = Event
+        fields = '__all__'
+
+    def validate_title(self, value):
+        request_method = self.context.get("request_method")
+        if request_method == "POST":
+            if Event.objects.filter(title = value).exists():
+                raise ValidationError("An event with this title exists already.")
+        return value
+
+    # def validate_organizer(self, value):
+    #     request_method = self.context.get("request_method")
