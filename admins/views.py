@@ -362,6 +362,9 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                             d = Department.objects.get(id=int(department))
                             new_profile.department = d
                             new_profile.save()
+                            g = GroupChat.objects.get(department=d)
+                            g.members.add(new_profile)
+                            g.save()
                         except:
                             return Response({
                                 'status': 'error',
@@ -678,7 +681,10 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                         "message": "department already exists!"
                     })
                 else:
-                    new_dep = Department.objects.create(title=title)  
+                    new_dep = Department.objects.create(title=title)
+                    new_group_chat = GroupChat(title=f"Group Chat for {new_dep.title}",
+                                               department=new_dep)
+                    new_group_chat.save()
                     return Response({
                         'status': "success",
                         "message": "department created sucessfully",
@@ -1402,6 +1408,118 @@ class ComplaintViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({
                 'status': 'success',
                 'message': 'Invalid complaint ID'
+            })
+
+class GroupChatViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = GroupChat.objects.all()
+    serializer_class = GroupChatSerializer
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_group_chats(self, request, *args, **kwargs):
+        try:
+            group_chats = GroupChat.objects.all()
+            if group_chats.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [GroupChatSerializer(ne).data for ne in group_chats],
+                    'message': 'group chat list retrieved'
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No group chat found'
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting group chat list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_group_chat(self, request, *args, **kwargs):
+        id = self.request.query_params.get('group_chat_id')
+        if id:
+            try:
+                group_chat = GroupChat.objects.get(id=int(id))
+                if group_chat is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': GroupChatSerializer(group_chat).data,
+                        'message': 'group chat details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid group_chat ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid group chat ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid group chat ID'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_group_members(self, request, *args, **kwargs):
+        id = self.request.query_params.get('group_chat_id')
+        if id:
+            try:
+                group_chat = GroupChat.objects.get(id=int(id))
+                if group_chat is not None:
+                    members = group_chat.members.all()
+                    return Response({
+                        'status': 'success',
+                        'data': [EmployeeSerializer(mem).data for mem in members],
+                        'message': 'members list retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid group_chat ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid group chat ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid group chat ID'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_chats(self, request, *args, **kwargs):
+        id = self.request.query_params.get('group_chat_id')
+        if id:
+            try:
+                group_chat = GroupChat.objects.get(id=int(id))
+                if group_chat is not None:
+                    chats = group_chat.chat_messages.all()
+                    return Response({
+                        'status': 'success',
+                        'data': [ChatMessageSerializer(chat).data for chat in chats],
+                        'message': 'chat messages retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid group chat ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid group chat ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid group chat ID'
             })
 
 class BankAccountViewSet(viewsets.ReadOnlyModelViewSet):

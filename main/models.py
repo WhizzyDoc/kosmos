@@ -100,3 +100,24 @@ class Complaint(models.Model):
         return str(self.title)
     class Meta:
         ordering = ['-date']
+        
+class GroupChat(models.Model):
+    title = models.CharField(max_length=250, blank=True)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="group_chat", blank=True)
+    members = models.ManyToManyField(Profile, blank=True, related_name="department_group")
+    created = models.DateTimeField(auto_now_add=True)
+    def __str__(self):
+        return str(self.title)
+    class Meta:
+        ordering = ['-created']
+        
+class ChatMessage(models.Model):
+    group = models.ForeignKey(GroupChat, on_delete=models.CASCADE, related_name="chat_messages")
+    sender = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name="chat_sent")
+    message = models.TextField()
+    date = models.DateTimeField(default=timezone.now)
+    seen_by  = models.ManyToManyField(Profile, related_name="chat_seen")
+    def __str__(self):
+        return f'{self.sender.__str__()}\'s message'
+    class Meta:
+        ordering = ['date']

@@ -47,7 +47,7 @@ class ProfileSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
-        fields = ['id', 'id_no', 'first_name', 'last_name', 'email']
+        fields = ['id', 'id_no', 'first_name', 'last_name', 'email', 'image']
 
 class BankAccountSerializer(serializers.ModelSerializer):
     user = EmployeeSerializer(many=False, read_only=True)
@@ -102,3 +102,18 @@ class ComplaintSerializer(serializers.ModelSerializer):
         model = Complaint
         fields = ['id', 'title', 'complaint', 'proposed_solution', 'addressed', 'solution',
                   'date', 'employee']
+
+class GroupChatSerializer(serializers.ModelSerializer):
+    department = DepartmentSerializer(many=False, read_only=True)
+    members = EmployeeSerializer(many=True, read_only=True)
+    class Meta:
+        model = GroupChat
+        fields = ['id', 'title', 'department', 'members', 'created']
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    group = GroupChatSerializer(many=False, read_only=True)
+    sender = EmployeeSerializer(many=False, read_only=True)
+    seen_by = EmployeeSerializer(many=True, read_only=True)
+    class Meta:
+        model = ChatMessage
+        fields = ['id', 'group', 'sender', 'message', 'date', 'seen_by']
