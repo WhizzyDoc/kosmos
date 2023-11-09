@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import *
 from main.models import *
 from django.contrib.auth.models import User
+from django.contrib.contenttypes.models import ContentType
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -92,6 +93,29 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'description', 'created_by', 'file', 'reward', 'assigned_to',
                   'completed', 'deadline']
 
+class LogSerializer(serializers.ModelSerializer):
+    user = EmployeeSerializer(many=False, read_only=True)
+    class Meta:
+        model = Log
+        fields = ['id', 'user', 'action', 'date']
+
+class NotificationSerializer(serializers.ModelSerializer):
+    user = EmployeeSerializer(many=False, read_only=True)
+    target_ct = serializers.SerializerMethodField()
+    class Meta:
+        model = Notification
+        fields = ['id', 'user', 'verb', 'target_ct', 'created']
+    
+    def get_target_ct(self, obj):
+        return obj.target_ct.model
+    
+    """
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['target_type'] = self.get_target_type(instance)
+        ret['target'] = serializers.ModelSerializer(instance.target_ct.model_class()).to_representation(instance.target)
+        return ret
+    """
 class ComplaintSerializer(serializers.ModelSerializer):
     employee = EmployeeSerializer(many=False, read_only=True)
     class Meta:

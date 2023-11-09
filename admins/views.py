@@ -4,6 +4,7 @@ from main.models import *
 from employee.models import *
 from .serializers import *
 from .bank import bank_list
+from .utils import create_action
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
 from rest_framework.views import APIView
@@ -320,78 +321,100 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         salary = request.data.get('salary')
         position = request.data.get('position')
         department = request.data.get('department')
-        # check if email is valid (view.py line 49)
-        if is_valid_email(email):
-            emails = []
-            users = User.objects.all()
-            # get a list of all registered emails
-            for user in users:
-                emails.append(user.email)
-            # check if email is not in existence
-            if email not in emails:
-                # check account type and retrieve appropriate group
+        key = request.data.get('api_token')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user_p = profile.user
+            if admin_group in user_p.groups.all():
                 try:
-                    new_user = User.objects.create(email=email, first_name=f_name, last_name=l_name)
-                    new_user.set_password(f_name)
-                    new_user.save()
-                    id_no = generate_id(new_user.id)
-                    new_user.username = id_no
-                    new_user.save()
-                    if a_type == 'staff':
-                        new_user.groups.add(staff_group)
-                        new_user.save()
-                    elif a_type == 'employee':
-                        new_user.groups.add(employee_group)
-                        new_user.save()
-                    # creates a new API key for user instance
-                    api_key = generate_token()
-                    # create a new profile
-                    new_profile = Profile(user=new_user, email=email, id_no=id_no, first_name=f_name, last_name=l_name,
-                                          api_token=api_key, middle_name=m_name, nationality=nationality, phone_number=phone_number,
-                                          salary=salary, title=title, city=city, state=state)
-                    new_profile.save()
-                    if position is not None and str(position) != '':
-                        try:
-                            p = Position.objects.get(id=int(position))
-                            new_profile.position = p
-                            new_profile.save()
-                        except:
+                    # check if email is valid (view.py line 49)
+                    if is_valid_email(email):
+                        emails = []
+                        users = User.objects.all()
+                        # get a list of all registered emails
+                        for user in users:
+                            emails.append(user.email)
+                        # check if email is not in existence
+                        if email not in emails:
+                            # check account type and retrieve appropriate group
+                            try:
+                                new_user = User.objects.create(email=email, first_name=f_name, last_name=l_name)
+                                new_user.set_password(f_name)
+                                new_user.save()
+                                id_no = generate_id(new_user.id)
+                                new_user.username = id_no
+                                new_user.save()
+                                if a_type == 'staff':
+                                    new_user.groups.add(staff_group)
+                                    new_user.save()
+                                elif a_type == 'employee':
+                                    new_user.groups.add(employee_group)
+                                    new_user.save()
+                                # creates a new API key for user instance
+                                api_key = generate_token()
+                                # create a new profile
+                                new_profile = Profile(user=new_user, email=email, id_no=id_no, first_name=f_name, last_name=l_name,
+                                                    api_token=api_key, middle_name=m_name, nationality=nationality, phone_number=phone_number,
+                                                    salary=salary, title=title, city=city, state=state)
+                                new_profile.save()
+                                Log.objects.create(user=profile, action=f"created a new employee ID number {id_no}")
+                                if position is not None and str(position) != '':
+                                    try:
+                                        p = Position.objects.get(id=int(position))
+                                        new_profile.position = p
+                                        new_profile.save()
+                                    except:
+                                        return Response({
+                                            'status': 'error',
+                                            'message': 'Invalid id for position'
+                                        })
+                                if department is not None and str(department) != '':
+                                    try:
+                                        d = Department.objects.get(id=int(department))
+                                        new_profile.department = d
+                                        new_profile.save()
+                                        g = GroupChat.objects.get(department=d)
+                                        g.members.add(new_profile)
+                                        g.save()
+                                    except:
+                                        return Response({
+                                            'status': 'error',
+                                            'message': 'Invalid id for department'
+                                        })
+                                return Response({
+                                    'status': 'success',
+                                    'message': f'Account created successfully. username is {id_no} and password is {f_name}',
+                                    'data': ProfileSerializer(new_profile).data
+                                })
+                            except:
+                                return Response({
+                                    'status': 'error',
+                                    'message': f'Error occured while creating account',
+                                })
+                        else:
                             return Response({
                                 'status': 'error',
-                                'message': 'Invalid id for position'
+                                'message': f'Email \'{email}\' has already been used, kindly use another email',
                             })
-                    if department is not None and str(department) != '':
-                        try:
-                            d = Department.objects.get(id=int(department))
-                            new_profile.department = d
-                            new_profile.save()
-                            g = GroupChat.objects.get(department=d)
-                            g.members.add(new_profile)
-                            g.save()
-                        except:
-                            return Response({
-                                'status': 'error',
-                                'message': 'Invalid id for department'
-                            })
-                    return Response({
-                        'status': 'success',
-                        'message': f'Account created successfully. username is {id_no} and password is {f_name}',
-                        'data': ProfileSerializer(new_profile).data
-                    })
+                    else:
+                        return Response({
+                            'status': 'error',
+                            'message': f"Invalid email",
+                        })
                 except:
                     return Response({
                         'status': 'error',
-                        'message': f'Error occured while creating account',
+                        'message': f"Error while creating a new employee",
                     })
             else:
                 return Response({
-                    'status': 'error',
-                    'message': f'Email \'{email}\' has already been used, kindly use another email',
+                    'status': "error",
+                    "message": "User is not authorized"
                 })
-        else:
+        except:
             return Response({
-                'status': 'error',
-                'message': f"Invalid email",
+                'status': "error",
+                "message": "Invalid API token"
             })
 
     # to register the created account by filling profile details
@@ -469,6 +492,30 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
             })
     @action(detail=False,
             methods=['post'])
+    def admin_logout(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                user.is_authenticated = False
+                user.save()
+                return Response({
+                    'status': "success",
+                    "message": "logout successful"
+                })
+            else:
+                return Response({
+                    'status': 'error',
+                    'message': "User is not authorized",
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
     def get_admin_profile(self, request, *args, **kwargs):
         key = request.data.get('api_token')
         try:
@@ -499,6 +546,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
             user = profile.user
             if admin_group in user.groups.all():
                 # edited attributes
+                Log.objects.create(user=profile, action=f"edited admin profile")
                 return Response({
                     'status': "success",
                     "message": "profile edited successfully",
@@ -614,7 +662,9 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                         "message": "position already exists!"
                     })
                 else:
-                    new_pos = Position.objects.create(title=title)  
+                    new_pos = Position(title=title)
+                    new_pos.save()
+                    Log.objects.create(user=profile, action=f"created a new position {title}")
                     return Response({
                         'status': "success",
                         "message": "position created sucessfully",
@@ -644,6 +694,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                     position = Position.objects.get(id=id)
                     position.title = title
                     position.save()
+                    Log.objects.create(user=profile, action=f"edited position {position.title}")
                     return Response({
                         'status': "success",
                         "message": "position edited sucessfully",
@@ -676,6 +727,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                 try:
                     position = Position.objects.get(id=id)
                     position.delete()
+                    Log.objects.create(user=profile, action=f"deleted position {position.title}")
                     return Response({
                         'status': "success",
                         "message": f"position \'{position.title}\' deleted sucessfully",
@@ -794,10 +846,12 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                         "message": "department already exists!"
                     })
                 else:
-                    new_dep = Department.objects.create(title=title)
+                    new_dep = Department(title=title)
+                    new_dep.save()
                     new_group_chat = GroupChat(title=f"Group Chat for {new_dep.title}",
                                                department=new_dep)
                     new_group_chat.save()
+                    Log.objects.create(user=profile, action=f"created a new department {new_dep.title}")
                     return Response({
                         'status': "success",
                         "message": "department created sucessfully",
@@ -827,6 +881,7 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                     department = Department.objects.get(id=id)
                     department.title = title
                     department.save()
+                    Log.objects.create(user=profile, action=f"edited department {department.title}")
                     return Response({
                         'status': "success",
                         "message": "department edited sucessfully",
@@ -859,6 +914,7 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                 try:
                     department = Department.objects.get(id=id)
                     department.delete()
+                    Log.objects.create(user=profile, action=f"deleted department {department.title}")
                     return Response({
                         'status': "success",
                         "message": f"department \'{department.title}\' deleted sucessfully",
@@ -966,7 +1022,9 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
                         "message": "bank already exists!"
                     })
                 else:
-                    new_bank = Bank.objects.create(bank_name=name, bank_code=code)  
+                    new_bank = Bank(bank_name=name, bank_code=code)
+                    new_bank.save()
+                    Log.objects.create(user=profile, action=f"created a new bank {name}")
                     return Response({
                         'status': "success",
                         "message": "bank created sucessfully",
@@ -1001,6 +1059,7 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
                     if code is not None:
                         bank.bank_code = code
                         bank.save()
+                        Log.objects.create(user=profile, action=f"edited bank {name}")
                     return Response({
                         'status': "success",
                         "message": "bank edited sucessfully",
@@ -1033,6 +1092,7 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
                 try:
                     bank = Bank.objects.get(id=id)
                     bank.delete()
+                    Log.objects.create(user=profile, action=f"deleted bank {bank.bank_name}")
                     return Response({
                         'status': "success",
                         "message": f"bank \'{bank.bank_name}\' deleted sucessfully",
@@ -1123,7 +1183,9 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
                         "message": "category already exists!"
                     })
                 else:
-                    new_cat = NewsCategory.objects.create(title=title, slug=slug)  
+                    new_cat = NewsCategory(title=title, slug=slug)
+                    new_cat.save()
+                    Log.objects.create(user=profile, action=f"created a news category {title}")
                     return Response({
                         'status': "success",
                         "message": "category created sucessfully",
@@ -1155,6 +1217,7 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
                     category.title = title
                     category.slug = slug
                     category.save()
+                    Log.objects.create(user=profile, action=f"edited news category {category.title}")
                     return Response({
                         'status': "success",
                         "message": "category edited sucessfully",
@@ -1187,6 +1250,7 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
                 try:
                     category = NewsCategory.objects.get(id=id)
                     category.delete()
+                    Log.objects.create(user=profile, action=f"deleted category {category.title}")
                     return Response({
                         'status': "success",
                         "message": f"category \'{category.title}\' deleted sucessfully",
@@ -1355,6 +1419,41 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': 'invalid ID number'
             })
     @action(detail=False,
+            methods=['get'])
+    def get_employee_report(self, request, *args, **kwargs):
+        query = self.request.query_params.get('employee_id')
+        if query and query != "":
+            try:
+                employee = Profile.objects.get(id_no=query)
+                if employee is not None:
+                    tasks = Task.objects.filter(assigned_to=employee)
+                    tasks_count = tasks.count()
+                    completed_tasks = Task.objects.filter(assigned_to=employee, completed=True)
+                    incomplete_tasks = Task.objects.filter(assigned_to=employee, completed=False)
+                    return Response({
+                        'status': 'success',
+                        'message': 'employee tasks report retrieved',
+                        'data': [TaskSerializer(task).data for task in tasks],
+                        'total_tasks': tasks_count,
+                        'completed_tasks': completed_tasks,
+                        'incomplete_tasks': incomplete_tasks
+                    })
+                else:
+                    return Response({
+                        'status': 'error',
+                        'message': 'invalid ID number'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'invalid ID number'
+                })
+        else:
+            return Response({
+                'status': 'error',
+                'message': 'invalid ID number'
+            })
+    @action(detail=False,
             methods=['post'])
     def deactivate_employee(self, request, *args, **kwargs):
         key = request.data.get('api_token')
@@ -1367,6 +1466,7 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                     employee = Profile.objects.get(id_no=id)
                     employee.user.is_active = False
                     employee.user.save()
+                    Log.objects.create(user=profile, action=f"deactivated employee account ID {employee.id_no}")
                     return Response({
                         'status': "success",
                         "message": f"Employee \'{employee.first_name} {employee.last_name}\' account deactivated sucessfully",
@@ -1399,6 +1499,7 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                     employee = Profile.objects.get(id_no=id)
                     employee.user.delete()
                     employee.delete()
+                    Log.objects.create(user=profile, action=f"deleted employee account ID {employee.id_no}")
                     return Response({
                         'status': "success",
                         "message": f"Employee \'{employee.first_name} {employee.last_name}\' deleted sucessfully",
@@ -1583,6 +1684,8 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
                         news = News(author=profile, title=title, slug=slug, post=post,
                                         category=category, active=active, verified=verified)
                         news.save()
+                        Log.objects.create(user=profile, action=f"created a new post {title}")
+                        create_action(profile, "added a news post", news)
                         return Response({
                             'status': "success",
                             "message": "news created sucessfully",
@@ -1637,6 +1740,7 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
                             news.verified = verified
                             news.category = category
                             news.save()
+                            Log.objects.create(user=profile, action=f"edited a news post {title}")
                             return Response({
                                 'status': "success",
                                 "message": f"\'{news.title}\' edited sucessfully",
@@ -1679,6 +1783,7 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
                 try:
                     news = News.objects.get(id=id)
                     news.delete()
+                    Log.objects.create(user=profile, action=f"deleted a news post {news.title}")
                     return Response({
                         'status': "success",
                         "message": f"news \'{news.title}\' deleted sucessfully",
@@ -1795,6 +1900,8 @@ class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
                 # check if position does not exist
                 new_meet = Meeting.objects.create(title=title, description=description)
                 new_meet.save()
+                Log.objects.create(user=profile, action=f"created a new meeting {title}")
+                create_action(profile, f"added a new meeting {title}", new_meet)
                 members = Position.objects.filter(id__in=ids)
                 for m in members:
                     new_meet.members.add(m)
@@ -1832,6 +1939,7 @@ class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
                     meeting.title = title
                     meeting.description = description
                     meeting.save()
+                    Log.objects.create(user=profile, action=f"edited a meeting {title}")
                     members = Position.objects.filter(id__in=mem_ids)
                     for m in members:
                         if m not in meeting.members.all():
@@ -1874,6 +1982,7 @@ class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
                 try:
                     meeting = Meeting.objects.get(id=id)
                     meeting.delete()
+                    Log.objects.create(user=profile, action=f"deleted a meeting {meeting.title}")
                     return Response({
                         'status': "success",
                         "message": f"meeting \'{meeting.title}\' deleted sucessfully",
@@ -2004,6 +2113,8 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
                                       description=description, location=location,
                                       link=link, invitation=invitation, directions=directions)
                     new_event.save()
+                    Log.objects.create(user=profile, action=f"created a new event {title}")
+                    create_action(profile, f"added a new event {title}", new_event)
                     return Response({
                         'status': "success",
                         "message": "event created sucessfully",
@@ -2045,6 +2156,7 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
                     event.invitation = invitation
                     event.directions = directions
                     event.save()
+                    Log.objects.create(user=profile, action=f"edited an event {event.title}")
                     return Response({
                         'status': "success",
                         "message": "event edited sucessfully",
@@ -2077,6 +2189,7 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
                 try:
                     event = Event.objects.get(id=id)
                     event.delete()
+                    Log.objects.create(user=profile, action=f"deleted an event {event.title}")
                     return Response({
                         'status': "success",
                         "message": f"event \'{event.title}\' deleted sucessfully",
@@ -2226,7 +2339,9 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
                         try:
                             new_task = Task(created_by=profile, title=title, deadline=deadline,
                                             description=description, file=file, assigned_to=assigned_to,
-                                            reward=reward)  
+                                            reward=reward)
+                            new_task.save()
+                            Log.objects.create(user=profile, action=f"created a new task {title}") 
                             return Response({
                                 'status': "success",
                                 "message": "task created sucessfully",
@@ -2276,6 +2391,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
                     task.file = file
                     task.completed = completed
                     task.save()
+                    Log.objects.create(user=profile, action=f"edited a task {task.title}")
                     reward = None
                     assigned_to = None
                     if reward_id:
@@ -2317,6 +2433,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
                 try:
                     task = Task.objects.get(id=id)
                     task.delete()
+                    Log.objects.create(user=profile, action=f"deleted a task {task.title}")
                     return Response({
                         'status': "success",
                         "message": f"task \'{task.title}\' deleted sucessfully",
@@ -2390,6 +2507,21 @@ class ComplaintViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'success',
                 'message': 'Invalid complaint ID'
             })
+
+class LogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Log.objects.all()
+    serializer_class = LogSerializer
+    permission_classes = [AllowAny]
+    
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [AllowAny]
+
+class BankAccountViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = BankAccount.objects.all()
+    serializer_class = BankAccountSerializer
+    permission_classes = [AllowAny]
 
 class GroupChatViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = GroupChat.objects.all()
@@ -2503,7 +2635,3 @@ class GroupChatViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': 'Invalid group chat ID'
             })
 
-class BankAccountViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = BankAccount.objects.all()
-    serializer_class = BankAccountSerializer
-    permission_classes = [AllowAny]
