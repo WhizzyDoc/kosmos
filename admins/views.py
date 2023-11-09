@@ -2461,18 +2461,58 @@ class ComplaintViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_complaints(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        completed = self.request.query_params.get('addressed')
+        query = self.request.query_params.get('search')
         try:
-            complaints = Complaint.objects.all()
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = 0
+            complaints = None
+            com = None
+            
+            if completed is None:
+                total_items = Complaint.objects.filter(title__icontains=query).count()
+                complaints = Complaint.objects.filter(title__icontains=query)[start:stop]
+            else:
+                if completed.lower() == 'true':
+                    com = True
+                elif completed.lower() == 'false':
+                    com = False
+                total_items = Complaint.objects.filter(addressed=com).filter(title__icontains=query).count()
+                complaints = Complaint.objects.filter(addressed=com).filter(title__icontains=query)[start:stop]
+            total_pages = math.ceil(total_items/per_page)
             if complaints.exists():
                 return Response({
                     'status': 'success',
                     'data': [ComplaintSerializer(ne).data for ne in complaints],
-                    'message': 'complaint list retrieved'
+                    'message': 'complaint list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
             else:
                 return Response({
                     'status': 'success',
-                    'message': 'No complaint found'
+                    'message': 'No complaint found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
         except:
             return Response({
@@ -2507,21 +2547,823 @@ class ComplaintViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'success',
                 'message': 'Invalid complaint ID'
             })
+    @action(detail=False,
+            methods=['post'])
+    def edit_complaint(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        addressed = request.data.get('addressed')
+        solution = request.data.get('solution')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    complaint = Complaint.objects.get(id=id)
+                    complaint.addressed = addressed
+                    complaint.solution = solution
+                    complaint.save()
+                    Log.objects.create(user=profile, action=f"edited complaint {complaint.title}")
+                    return Response({
+                        'status': "success",
+                        "message": "complaint edited sucessfully",
+                        "data": ComplaintSerializer(complaint).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"complaint with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_complaint(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    complaint = Complaint.objects.get(id=id)
+                    complaint.delete()
+                    Log.objects.create(user=profile, action=f"deleted complaint {complaint.title}")
+                    return Response({
+                        'status': "success",
+                        "message": f"complaint \'{complaint.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"complaint with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+
+class QueryViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Query.objects.all()
+    serializer_class = QuerySerializer
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_queries(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        completed = self.request.query_params.get('addressed')
+        query = self.request.query_params.get('search')
+        try:
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = 0
+            queries = None
+            com = None
+            
+            if completed is None:
+                total_items = Query.objects.filter(title__icontains=query).count()
+                queries = Query.objects.filter(title__icontains=query)[start:stop]
+            else:
+                if completed.lower() == 'true':
+                    com = True
+                elif completed.lower() == 'false':
+                    com = False
+                total_items = Query.objects.filter(addressed=com).filter(title__icontains=query).count()
+                queries = Query.objects.filter(addressed=com).filter(title__icontains=query)[start:stop]
+            total_pages = math.ceil(total_items/per_page)
+            if queries.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [QuerySerializer(ne).data for ne in queries],
+                    'message': 'query list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No query found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting query list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_query(self, request, *args, **kwargs):
+        id = self.request.query_params.get('query_id')
+        if id:
+            try:
+                query = Query.objects.get(id=int(id))
+                if query is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': QuerySerializer(query).data,
+                        'message': 'query details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid query ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid query ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid query ID'
+            })
+    @action(detail=False,
+            methods=['post'])
+    def create_query(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        query = request.data.get('query')
+        id = request.data.get('employee_id')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # check if position does not exist
+                try:
+                    employee = Profile.objcts.get(id_no=id)
+                    try:
+                        new_q = Query(title=title, query=query, addressed_to=employee)
+                        new_q.save()
+                        Log.objects.create(user=profile, action=f"created a new query {new_q.title}")
+                        return Response({
+                            'status': "success",
+                            "message": "query created sucessfully",
+                            "data": QuerySerializer(new_q).data,
+                        })
+                    except:
+                        return Response({
+                            'status': "error",
+                            "message": "Error creating query"
+                        })
+                except:
+                    return Response({
+                        'status': "error",
+                        "message": "Invalid employee ID"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def edit_query(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        addressed = request.data.get('addressed')
+        title = request.data.get('title')
+        q = request.data.get('query')
+        id_no = request.data.get('employee_id')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    employee = Profile.objects.get(id_no=id_no)
+                    query = Complaint.objects.get(id=id)
+                    query.title = title
+                    query.query = q
+                    query.addressed = addressed
+                    query.save()
+                    Log.objects.create(user=profile, action=f"edited query {query.title}")
+                    return Response({
+                        'status': "success",
+                        "message": "query edited sucessfully",
+                        "data": QuerySerializer(query).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"Invalid query/employee ID"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_query(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    query = Query.objects.get(id=id)
+                    query.delete()
+                    Log.objects.create(user=profile, action=f"deleted query {query.title}")
+                    return Response({
+                        'status': "success",
+                        "message": f"query \'{query.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"query with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
 
 class LogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Log.objects.all()
     serializer_class = LogSerializer
     permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_logs(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        id = self.request.query_params.get('employee_id')
+        query = self.request.query_params.get('search')
+        try:
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = 0
+            logs = None
+            employee = None
+            
+            if id is None:
+                total_items = Log.objects.filter(action__icontains=query).count()
+                logs = Log.objects.filter(action__icontains=query)[start:stop]
+            else:
+                employee = Profile.objects.get(id_no=id)
+                total_items = Log.objects.filter(user=employee).filter(title__icontains=query).count()
+                logs = Log.objects.filter(user=employee).filter(title__icontains=query)[start:stop]
+            total_pages = math.ceil(total_items/per_page)
+            if logs.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [LogSerializer(ne).data for ne in logs],
+                    'message': 'log list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No log found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting log list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_log(self, request, *args, **kwargs):
+        id = self.request.query_params.get('log_id')
+        if id:
+            try:
+                log = Log.objects.get(id=int(id))
+                if log is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': LogSerializer(log).data,
+                        'message': 'log details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid log ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid log ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid log ID'
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_log(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    log = Log.objects.get(id=id)
+                    log.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"log \'{log.action}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"log with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
     
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
     permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_notifications(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
+        try:
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            
+            total_items = Notification.objects.filter(verb__icontains=query).count()
+            notifications = Notification.objects.filter(verb__icontains=query)[start:stop]
+            total_pages = math.ceil(total_items/per_page)
+            if notifications.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [NotificationSerializer(ne).data for ne in notifications],
+                    'message': 'notification list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No notification found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting notification list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_notification(self, request, *args, **kwargs):
+        id = self.request.query_params.get('notification_id')
+        if id:
+            try:
+                notification = Notification.objects.get(id=int(id))
+                if notification is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': NotificationSerializer(notification).data,
+                        'message': 'notification details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid notification ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid notification ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid notification ID'
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_notification(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    notification = Notification.objects.get(id=id)
+                    notification.delete()
+                    Log.objects.create(user=profile, action=f"deleted notification {notification.title}")
+                    return Response({
+                        'status': "success",
+                        "message": f"notification \'{notification.verb}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"notification with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+
+class RewardViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Reward.objects.all()
+    serializer_class = RewardSerializer
+    permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_rewards(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
+        try:
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = Reward.objects.filter(title__icontains=query).count()
+            total_pages = math.ceil(total_items/per_page)
+            rewards = Reward.objects.filter(title__icontains=query)[start:stop]
+            if rewards.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [RewardSerializer(pos).data for pos in rewards],
+                    'message': 'reward list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No reward found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting reward list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_reward(self, request, *args, **kwargs):
+        id = self.request.query_params.get('reward_id')
+        if id:
+            try:
+                reward = Reward.objects.get(id=int(id))
+                if reward is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': RewardSerializer(reward).data,
+                        'message': 'reward details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid reward ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid reward ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid reward ID'
+            })
+    @action(detail=False,
+            methods=['post'])
+    def create_reward(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        description = request.data.get('description')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # check if position does not exist
+                reward = Reward.objects.get(title=title)
+                if reward is not None:
+                    return Response({
+                        'status': "error",
+                        "message": "reward already exists!"
+                    })
+                else:
+                    new_pos = reward(title=title, description=description)
+                    new_pos.save()
+                    Log.objects.create(user=profile, action=f"created a new reward {title}")
+                    return Response({
+                        'status': "success",
+                        "message": "reward created sucessfully",
+                        "data": RewardSerializer(new_pos).data,
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def edit_reward(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        description = request.data.get('description')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    reward = Reward.objects.get(id=id)
+                    reward.title = title
+                    reward.description = description
+                    reward.save()
+                    Log.objects.create(user=profile, action=f"edited reward {reward.title}")
+                    return Response({
+                        'status': "success",
+                        "message": "reward edited sucessfully",
+                        "data": RewardSerializer(reward).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"reward with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_reward(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    reward = Reward.objects.get(id=id)
+                    reward.delete()
+                    Log.objects.create(user=profile, action=f"deleted reward {reward.title}")
+                    return Response({
+                        'status': "success",
+                        "message": f"reward \'{reward.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"reward with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
 
 class BankAccountViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = BankAccount.objects.all()
     serializer_class = BankAccountSerializer
     permission_classes = [AllowAny]
+    @action(detail=False,
+            methods=['get'])
+    def get_bank_accounts(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
+        try:
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            
+            total_items = BankAccount.objects.filter(Q(account_name__icontains=query) | Q(account_number__icontains=query) |
+                                                     Q(bank__bank_name__icontains=query)).count()
+            bank_accounts = BankAccount.objects.filter(Q(account_name__icontains=query) | Q(account_number__icontains=query) |
+                                                     Q(bank__bank_name__icontains=query))[start:stop]
+            total_pages = math.ceil(total_items/per_page)
+            if bank_accounts.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [BankAccountSerializer(ne).data for ne in bank_accounts],
+                    'message': 'bank account list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No bank account found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting bank account list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_bank_account(self, request, *args, **kwargs):
+        id = self.request.query_params.get('bank_account_id')
+        if id:
+            try:
+                bank_account = BankAccount.objects.get(id=int(id))
+                if bank_account is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': BankAccountSerializer(bank_account).data,
+                        'message': 'bank account details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid bank account ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid bank account ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid bank account ID'
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_bank_account(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    bank_account = BankAccount.objects.get(id=id)
+                    bank_account.delete()
+                    Log.objects.create(user=profile, action=f"deleted bank account {bank_account.account_name}({bank_account.account_number})")
+                    return Response({
+                        'status': "success",
+                        "message": f"bank account \'{bank_account.account_name}({bank_account.account_number})\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"bank account with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
 
 class GroupChatViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = GroupChat.objects.all()

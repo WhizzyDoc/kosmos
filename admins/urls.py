@@ -16,8 +16,10 @@ router.register('events', views.EventViewSet)
 router.register('bank_accounts', views.BankAccountViewSet)
 router.register('tasks', views.TaskViewSet)
 router.register('complaints', views.ComplaintViewSet)
+router.register('queries', views.QueryViewSet)
 router.register('logs', views.LogViewSet)
 router.register('notifications', views.NotificationViewSet)
+router.register('rewards', views.RewardViewSet)
 router.register('group_chats', views.GroupChatViewSet)
 
 urlpatterns = [

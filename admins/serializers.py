@@ -82,7 +82,7 @@ class RewardSerializer(serializers.ModelSerializer):
     owner = ProfileSerializer(many=False, read_only=True)
     class Meta:
         model = Reward
-        fields = ['id', 'owner', 'description']
+        fields = ['id', 'title', 'description']
 
 class TaskSerializer(serializers.ModelSerializer):
     created_by = EmployeeSerializer(many=False, read_only=True)
@@ -122,6 +122,12 @@ class ComplaintSerializer(serializers.ModelSerializer):
         model = Complaint
         fields = ['id', 'title', 'complaint', 'proposed_solution', 'addressed', 'solution',
                   'date', 'employee']
+
+class QuerySerializer(serializers.ModelSerializer):
+    addressed_to = EmployeeSerializer(many=False, read_only=True)
+    class Meta:
+        model = Query
+        fields = ['id', 'title', 'query', 'addressed_to', 'addressed']
 
 class GroupChatSerializer(serializers.ModelSerializer):
     department = DepartmentSerializer(many=False, read_only=True)

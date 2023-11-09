@@ -71,8 +71,10 @@ class BankAccount(models.Model):
 
 
 class Reward(models.Model):
-    owner = models.ForeignKey(Profile, on_delete=models.CASCADE) 
+    title = models.CharField(max_length=250, null=True, blank=True)
     description = models.TextField(null=True, blank=True)
+    def __str__(self):
+        return str(self.description)
     
 class Task(models.Model):
     title = models.CharField(max_length=250, null=True, blank=True)
@@ -102,12 +104,24 @@ class Complaint(models.Model):
     class Meta:
         ordering = ['-date']
 
+class Query(models.Model):
+    addressed_to = models.ForeignKey(Profile, related_name="queries", null=True, blank=True, on_delete=models.CASCADE)
+    title = models.CharField(max_length=250, null=True, blank=True)
+    query = HTMLField(null=True, blank=True)
+    addressed = models.BooleanField(default=False)
+    date = models.DateTimeField(default=timezone.now)
+    def __str__(self):
+        return str(self.title)
+    class Meta:
+        ordering = ['-date']
+
+
 class Log(models.Model):
     user = models.ForeignKey(Profile, related_name='activity_logs', db_index=True, on_delete=models.CASCADE)
     action = models.TextField()
     date = models.DateTimeField(auto_now_add=True)
     class Meta:
-        ordering = ('date',)
+        ordering = ['-date']
     def __str__(self):
         return f'{self.action}'
 
