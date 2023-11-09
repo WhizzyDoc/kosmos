@@ -8,9 +8,7 @@ class SiteAdmin(admin.ModelAdmin):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ['organizer', 'title', 'date', 'type']
-    list_filter = ['type']
-    list_editable = ['type']
+    list_display = ['organizer', 'title', 'date']
     list_per_page = 20
 
 @admin.register(Meeting)

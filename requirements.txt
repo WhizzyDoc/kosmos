@@ -8,6 +8,7 @@ django-taggit
 django-countries
 django-tinymce
 django-cors-headers
+django-filter
 easy-thumbnails
 humanize
 mysql

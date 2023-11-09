@@ -26,17 +26,12 @@ class Event(models.Model):
     organizer = models.ForeignKey(Profile, on_delete=models.CASCADE)  # This is the person who created it
     title = models.CharField(max_length=256)
     description = HTMLField(null=True, blank=True)
-    date = models.DateTimeField(default=timezone.now)
-    type = models.CharField(max_length=50, choices = (
-        ("open", "open"),
-        ("invitation", "invitation")
-    ))
+    date = models.DateTimeField(null=True, blank=True)
     location = models.CharField(max_length=256, null=True, blank=True) # Can serve for both link and venue
     link = models.URLField(null=True, blank=True)
     invitation = models.FileField(upload_to="events/invitations/", null=True, blank=True)
     directions = HTMLField(null=True, blank=True) # optional field
-    invitees = models.ManyToManyField(Profile, related_name="event_invited")
-    attending = models.ManyToManyField(Profile, related_name="event_attending")
+    created = models.DateTimeField(default=timezone.now)
     def __str__(self):
         return str(self.title)
     class Meta:
@@ -70,8 +65,8 @@ class News(models.Model):
     post = HTMLField()
     date = models.DateTimeField(default=timezone.now)
     category = models.ForeignKey(NewsCategory, on_delete=models.DO_NOTHING, related_name="news", null=True, blank=True) 
-    active = models.BooleanField(default=True)
-    verified = models.BooleanField(default=False)
+    active = models.BooleanField(default=True, null=True, blank=True)
+    verified = models.BooleanField(default=False, null=True, blank=True)
     def __str__(self):
         return self.title
     class Meta:

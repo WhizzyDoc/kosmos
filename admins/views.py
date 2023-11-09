@@ -23,6 +23,7 @@ from django.utils import timezone
 from django.http import FileResponse
 from django.utils.text import slugify
 import random
+import math
 import string
 
 employee_group, created = Group.objects.get_or_create(name="employee")
@@ -311,6 +312,8 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         f_name = request.data.get('first_name')
         l_name = request.data.get('last_name')
         m_name = request.data.get('middle_name')
+        city = request.data.get('city')
+        state = request.data.get('state')
         nationality = request.data.get('nationality')
         phone_number = request.data.get('phone_number')
         a_type = request.data.get('account_type')
@@ -345,7 +348,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                     # create a new profile
                     new_profile = Profile(user=new_user, email=email, id_no=id_no, first_name=f_name, last_name=l_name,
                                           api_token=api_key, middle_name=m_name, nationality=nationality, phone_number=phone_number,
-                                          salary=salary, title=title)
+                                          salary=salary, title=title, city=city, state=state)
                     new_profile.save()
                     if position is not None and str(position) != '':
                         try:
@@ -521,23 +524,78 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_positions(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
         try:
-            positions = Position.objects.all()
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = Position.objects.filter(title__icontains=query).count()
+            total_pages = math.ceil(total_items/per_page)
+            positions = Position.objects.filter(title__icontains=query)[start:stop]
             if positions.exists():
                 return Response({
                     'status': 'success',
                     'data': [PositionSerializer(pos).data for pos in positions],
-                    'message': 'position list retrieved'
+                    'message': 'position list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
             else:
                 return Response({
                     'status': 'success',
-                    'message': 'No position found'
+                    'message': 'No position found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
         except:
             return Response({
                 'status': 'error',
                 'message': 'Error getting position list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_position(self, request, *args, **kwargs):
+        id = self.request.query_params.get('position_id')
+        if id:
+            try:
+                position = Position.objects.get(id=int(id))
+                if position is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': PositionSerializer(position).data,
+                        'message': 'position details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid position ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid position ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid position ID'
             })
     @action(detail=False,
             methods=['post'])
@@ -646,23 +704,78 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_departments(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
         try:
-            departments = Department.objects.all()
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = Department.objects.filter(title__icontains=query).count()
+            total_pages = math.ceil(total_items/per_page)
+            departments = Department.objects.filter(title__icontains=query)[start:stop]
             if departments.exists():
                 return Response({
                     'status': 'success',
                     'data': [DepartmentSerializer(dept).data for dept in departments],
-                    'message': 'department list retrieved'
+                    'message': 'department list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
             else:
                 return Response({
                     'status': 'success',
-                    'message': 'No department found'
+                    'message': 'No department found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
         except:
             return Response({
                 'status': 'error',
                 'message': 'Error getting department list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def get_department(self, request, *args, **kwargs):
+        id = self.request.query_params.get('department_id')
+        if id:
+            try:
+                department = Department.objects.get(id=int(id))
+                if department is not None:
+                    return Response({
+                        'status': 'success',
+                        'data': DepartmentSerializer(department).data,
+                        'message': 'department details retrieved'
+                    })
+                else:
+                    return Response({
+                        'status': 'success',
+                        'message': 'Invalid department ID'
+                    })
+            except:
+                return Response({
+                    'status': 'error',
+                    'message': 'Invalid department ID'
+                })
+        else:
+            return Response({
+                'status': 'success',
+                'message': 'Invalid department ID'
             })
     @action(detail=False,
             methods=['post'])
@@ -774,18 +887,45 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_banks(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
         try:
-            banks = Bank.objects.all()
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = Bank.objects.filter(Q(bank_name__icontains=query) | Q(bank_code__icontains=query)).count()
+            total_pages = math.ceil(total_items/per_page)
+            banks = Bank.objects.filter(Q(bank_name__icontains=query) | Q(bank_code__icontains=query))
             if banks.exists():
                 return Response({
                     'status': 'success',
                     'data': [BankSerializer(bank).data for bank in banks],
-                    'message': 'bank list retrieved'
+                    'message': 'bank list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
             else:
                 return Response({
                     'status': 'success',
-                    'message': 'No bank found'
+                    'message': 'No bank found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
         except:
             return Response({
@@ -920,18 +1060,45 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_categories(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
         try:
-            categories = NewsCategory.objects.all()
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = NewsCategory.objects.filter(title__icontains=query).count()
+            total_pages = math.ceil(total_items/per_page)
+            categories = NewsCategory.objects.filter(title__icontains=query)
             if categories.exists():
                 return Response({
                     'status': 'success',
                     'data': [NewsCategorySerializer(cat).data for cat in categories],
-                    'message': 'category list retrieved'
+                    'message': 'category list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
             else:
                 return Response({
                     'status': 'success',
-                    'message': 'No categories found'
+                    'message': 'No categories found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
         except:
             return Response({
@@ -1047,75 +1214,117 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_employees(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
+        try:
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = Profile.objects.exclude(user__groups=admin_group).filter(
+                Q(first_name__icontains=query) | Q(middle_name__icontains=query) |
+                Q(last_name__icontains=query) | Q(email__icontains=query) |
+                Q(phone_number__icontains=query)).count()
+            total_pages = math.ceil(total_items/per_page)
+            employees = Profile.objects.exclude(user__groups=admin_group).filter(
+                Q(first_name__icontains=query) | Q(middle_name__icontains=query) |
+                Q(last_name__icontains=query) | Q(email__icontains=query) |
+                Q(phone_number__icontains=query))[start:stop]
+            if employees.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [ProfileSerializer(pos).data for pos in employees],
+                    'message': 'employee list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No employee found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting employee list'
+            })
+        
+    @action(detail=False,
+            methods=['get'])
+    def filter_employee(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
         dept_filter = self.request.query_params.get('department_id')
-        if dept_filter:
-            try:
-                dept = Department.objects.get(id=int(dept_filter))
-                employees = Profile.objects.exclude(user__groups=admin_group).filter(department=dept)
-                if employees.exists():
+        state_filter = self.request.query_params.get('state')
+        try:
+            if dept_filter:
+                try:
+                    dept = Department.objects.get(id=int(dept_filter))
+                    if page is None:
+                        page = 1
+                    else:
+                        page = int(page)
+                    if per_page is None:
+                        per_page = 20
+                    else:
+                        per_page = int(per_page)
+                    start = (page - 1) * per_page
+                    stop = page * per_page
+                    total_items = Profile.objects.exclude(user__groups=admin_group).filter(department=dept).count()
+                    total_pages = math.ceil(total_items/per_page)
+                    employees = Profile.objects.exclude(user__groups=admin_group).filter(department=dept)[start:stop]
+                    if employees.exists():
+                        return Response({
+                            'status': 'success',
+                            'data': [ProfileSerializer(pos).data for pos in employees],
+                            'message': 'employee list retrieved',
+                            'page_number': page,
+                            "list_per_page": per_page,
+                            "total_pages": total_pages,
+                            "total_items": total_items,
+                            "department": str(dept.title)
+                        })
+                    else:
+                        return Response({
+                            'status': 'success',
+                            'message': 'No employees found',
+                            'page_number': page,
+                            "list_per_page": per_page,
+                            "total_pages": total_pages,
+                            "total_items": total_items,
+                            "department": str(dept.title)
+                        })
+                except:
                     return Response({
-                        "status": "success",
-                        "message": "employee list retrieved",
-                        "data": [ProfileSerializer(emp).data for emp in employees]
+                        "status": "error",
+                        "message": "Invalid id for department"
                     })
-                else:
-                    return Response({
-                        "status": "success",
-                        "message": "No employee added"
-                    })
-            except:
+            else:
                 return Response({
                     "status": "error",
                     "message": "Invalid id for department"
                 })
-        else:
-            try:
-                employees = Profile.objects.all().exclude(user__groups=admin_group)
-                if employees.exists():
-                    return Response({
-                        "status": "success",
-                        "message": "employee list retrieved",
-                        "data": [ProfileSerializer(emp).data for emp in employees]
-                    })
-                else:
-                    return Response({
-                        "status": "success",
-                        "message": "No employee added"
-                    })
-            except:
-                return Response({
-                    "status": "error",
-                    "message": "error while getting employee list"
-                })
-    @action(detail=False,
-            methods=['get'])
-    def search_employee(self, request, *args, **kwargs):
-        query = self.request.query_params.get('search')
-        if query and query != "":
-            try:
-                results = Profile.objects.filter(Q(first_name__icontains=query) | Q(middle_name__icontains=query) |
-                                       Q(last_name__icontains=query) | Q(email__icontains=query) |
-                                       Q(phone_number__icontains=query) | Q(id_no__icontains=query))
-                if results.exists():
-                    return Response({
-                        "status": "success",
-                        "message": f"result found for \'{query}\'",
-                        "data": [ProfileSerializer(res).data for res in results]
-                    })
-                else:
-                    return Response({
-                        "status": "success",
-                        "message": f"No result found for \'{query}\'"
-                    })
-            except:
-                    return Response({
-                        "status": "error",
-                        "message": f"Error while getting search results"
-                    })
-        else:
+        except:
             return Response({
                 "status": "error",
-                "message": f"Invalid search query"
+                "message": "error while getting employee list"
             })
     @action(detail=False,
             methods=['get'])
@@ -1145,6 +1354,70 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'invalid ID number'
             })
+    @action(detail=False,
+            methods=['post'])
+    def deactivate_employee(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = request.data.get('id_number')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    employee = Profile.objects.get(id_no=id)
+                    employee.user.is_active = False
+                    employee.user.save()
+                    return Response({
+                        'status': "success",
+                        "message": f"Employee \'{employee.first_name} {employee.last_name}\' account deactivated sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"employee  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_employee(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = request.data.get('id_number')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    employee = Profile.objects.get(id_no=id)
+                    employee.user.delete()
+                    employee.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"Employee \'{employee.first_name} {employee.last_name}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"employee  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
      
 class NewsViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = News.objects.all()
@@ -1152,6 +1425,118 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
     @action(detail=False,
             methods=['get'])
+    def news_list(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
+        try:
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = News.objects.filter(Q(title__icontains=query) |
+                                              Q(post__icontains=query)).count()
+            total_pages = math.ceil(total_items/per_page)
+            news = News.objects.filter(Q(title__icontains=query) |
+                                        Q(post__icontains=query))[start:stop]
+            if news.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [NewsSerializer(ne).data for ne in news],
+                    'message': 'news list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No news found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting news list'
+            })
+    @action(detail=False,
+            methods=['get'])
+    def filter_news(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        active_filter = self.request.query_params.get('active')
+        verify_filter = self.request.query_params.get('verified')
+        #cat_filter = self.request.query_params.get('category_id')
+        try:
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if active_filter is None:
+                active_filter = True
+            elif active_filter.lower() == 'true':
+                active_filter = True
+            elif active_filter.lower() == 'false':
+                active_filter = False
+            else:
+                active_filter = True
+            if verify_filter is None:
+                verify_filter = True
+            elif verify_filter.lower() == 'true':
+                verify_filter = True
+            elif verify_filter.lower() == 'false':
+                verify_filter = False
+            else:
+                verify_filter = True
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = News.objects.filter(active=active_filter, verified=verify_filter).count()
+            total_pages = math.ceil(total_items/per_page)
+            news = News.objects.filter(active=active_filter, verified=verify_filter)[start:stop]
+            if news.exists():
+                return Response({
+                    'status': 'success',
+                    'data': [NewsSerializer(ne).data for ne in news],
+                    'message': 'news list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'No news found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items
+                })
+        except:
+            return Response({
+                'status': 'error',
+                'message': 'Error getting news list'
+            })
+    @action(detail=False,
+        methods=['get'])
     def get_news(self, request, *args, **kwargs):
         id = self.request.query_params.get('news_id')
         if id:
@@ -1174,24 +1559,145 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
                     'message': 'Invalid news ID'
                 })
         else:
-            try:
-                news = News.objects.all()
-                if news.exists():
+            return Response({
+                'status': 'error',
+                'message': 'Invalid news ID'
+            })
+    @action(detail=False,
+            methods=['post'])
+    def create_news(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        slug = slugify(title)
+        post = request.data.get('post')
+        active = request.data.get('active')
+        verified = request.data.get('verified')
+        cat_id = int(request.data.get('category_id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    category = NewsCategory.objects.get(id=cat_id)
+                    try:
+                        news = News(author=profile, title=title, slug=slug, post=post,
+                                        category=category, active=active, verified=verified)
+                        news.save()
+                        return Response({
+                            'status': "success",
+                            "message": "news created sucessfully",
+                            "data": NewsSerializer(news).data,
+                        })
+                    except:
+                        return Response({
+                            'status': "error",
+                            "message": "error while creating news"
+                        })
+                except:
                     return Response({
-                        'status': 'success',
-                        'data': [NewsSerializer(ne).data for ne in news],
-                        'message': 'news list retrieved'
+                        "status": "error",
+                        "message": f"category with id \'{id}\' does not exist"
                     })
-                else:
-                    return Response({
-                        'status': 'success',
-                        'message': 'No news found'
-                    })
-            except:
+            else:
                 return Response({
-                    'status': 'error',
-                    'message': 'Error getting news list'
+                    'status': "error",
+                    "message": "User is not authorized"
                 })
+        except:
+            return Response({
+                'status': "error",
+                "message": "invalid API token"
+            })
+        
+    @action(detail=False,
+            methods=['post'])
+    def edit_news(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('news_id'))
+        title = request.data.get('title')
+        slug = slugify(title)
+        post = request.data.get('post')
+        active = request.data.get('active')
+        verified = request.data.get('verified')
+        cat_id = int(request.data.get('category_id'))
+        
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    category = NewsCategory.objects.get(id=cat_id)
+                    try:
+                        news = News.objects.get(id=id)
+                        try:
+                            news.title =title
+                            news.slug = slug
+                            news.post = post
+                            news.active = active
+                            news.verified = verified
+                            news.category = category
+                            news.save()
+                            return Response({
+                                'status': "success",
+                                "message": f"\'{news.title}\' edited sucessfully",
+                                "data": NewsSerializer(news).data,
+                            })
+                        except:
+                            return Response({
+                                'status': "error",
+                                "message": "error while saving news"
+                            })
+                    except:
+                        return Response({
+                            'status': "error",
+                            "message": "invalid news id"
+                        })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"category  with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_news(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    news = News.objects.get(id=id)
+                    news.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"news \'{news.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"news with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
 
 class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Meeting.objects.all()
@@ -1200,18 +1706,47 @@ class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_meetings(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
         try:
-            meetings = Meeting.objects.all()
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = Meeting.objects.filter(Q(title__icontains=query) |
+                                                 Q(description__icontains=query)).count()
+            total_pages = math.ceil(total_items/per_page)
+            meetings = Meeting.objects.filter(Q(title__icontains=query) |
+                                            Q(description__icontains=query))[start:stop]
             if meetings.exists():
                 return Response({
                     'status': 'success',
                     'data': [MeetingSerializer(ne).data for ne in meetings],
-                    'message': 'meeting list retrieved'
+                    'message': 'meeting list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
             else:
                 return Response({
                     'status': 'success',
-                    'message': 'No meeting found'
+                    'message': 'No meeting found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
         except:
             return Response({
@@ -1246,6 +1781,118 @@ class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'success',
                 'message': 'Invalid meeting ID'
             })
+    @action(detail=False,
+            methods=['post'])
+    def create_meeting(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        description = request.data.get('description')
+        ids = request.data.get('members', [])
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # check if position does not exist
+                new_meet = Meeting.objects.create(title=title, description=description)
+                new_meet.save()
+                members = Position.objects.filter(id__in=ids)
+                for m in members:
+                    new_meet.members.add(m)
+                    new_meet.save()  
+                return Response({
+                    'status': "success",
+                    "message": "meeting created sucessfully",
+                    "data": MeetingSerializer(new_meet).data,
+                })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def edit_meeting(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        description = request.data.get('description')
+        mem_ids = request.data.get('members', [])
+        att_ids = request.data.get('attended_by', [])
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    meeting = Position.objects.get(id=id)
+                    meeting.title = title
+                    meeting.description = description
+                    meeting.save()
+                    members = Position.objects.filter(id__in=mem_ids)
+                    for m in members:
+                        if m not in meeting.members.all():
+                            meeting.members.add(m)
+                            meeting.save()
+                    att_by = Position.objects.filter(id__in=att_ids)
+                    for m in att_by:
+                        if m not in meeting.attended_by.all():
+                            meeting.attended_by.add(m)
+                            meeting.save()
+                    return Response({
+                        'status': "success",
+                        "message": "meeting edited sucessfully",
+                        "data": MeetingSerializer(meeting).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"meeting with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_meeting(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    meeting = Meeting.objects.get(id=id)
+                    meeting.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"meeting \'{meeting.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"meeting with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
 
 class EventViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Event.objects.all()
@@ -1255,18 +1902,47 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_events(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        query = self.request.query_params.get('search')
         try:
-            events = Event.objects.all()
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = Event.objects.filter(Q(title__icontains=query) | Q(location__icontains=query) |
+                                               Q(description__icontains=query)).count()
+            total_pages = math.ceil(total_items/per_page)
+            events = Event.objects.filter(Q(title__icontains=query) | Q(location__icontains=query) |
+                                               Q(description__icontains=query))[start:stop]
             if events.exists():
                 return Response({
                     'status': 'success',
                     'data': [EventSerializer(ne).data for ne in events],
-                    'message': 'event list retrieved'
+                    'message': 'event list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
             else:
                 return Response({
                     'status': 'success',
-                    'message': 'No event found'
+                    'message': 'No event found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
         except:
             return Response({
@@ -1301,6 +1977,125 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'success',
                 'message': 'Invalid event ID'
             })
+    @action(detail=False,
+            methods=['post'])
+    def create_event(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        description = request.data.get('description')
+        date = request.data.get('date')
+        location = request.data.get('location')
+        link = request.data.get('link')
+        invitation = request.FILES.get('invitation')
+        directions = request.data.get('directions')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # check if position does not exist
+                event = Event.objects.get(title=title)
+                if event is not None:
+                    return Response({
+                        'status': "error",
+                        "message": "event already exists!"
+                    })
+                else:
+                    new_event = Event(organizer=profile, title=title, date=date,
+                                      description=description, location=location,
+                                      link=link, invitation=invitation, directions=directions)
+                    new_event.save()
+                    return Response({
+                        'status': "success",
+                        "message": "event created sucessfully",
+                        "data": EventSerializer(new_event).data,
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def edit_event(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        description = request.data.get('description')
+        date = request.data.get('date')
+        location = request.data.get('location')
+        link = request.data.get('link')
+        invitation = request.FILES.get('invitation')
+        directions = request.data.get('directions')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    event = Event.objects.get(id=id)
+                    event.title = title
+                    event.description=description
+                    event.date = date
+                    event.location = location
+                    event.link = link
+                    event.invitation = invitation
+                    event.directions = directions
+                    event.save()
+                    return Response({
+                        'status': "success",
+                        "message": "event edited sucessfully",
+                        "data": EventSerializer(event).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"event with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_event(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    event = Event.objects.get(id=id)
+                    event.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"event \'{event.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"event with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
     
 class TaskViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Task.objects.all()
@@ -1309,18 +2104,62 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_tasks(self, request, *args, **kwargs):
+        page = self.request.query_params.get('page')
+        per_page = self.request.query_params.get('per_page')
+        completed = self.request.query_params.get('completed')
+        query = self.request.query_params.get('search')
         try:
-            tasks = Task.objects.all()
+            if page is None:
+                page = 1
+            else:
+                page = int(page)
+            if per_page is None:
+                per_page = 20
+            else:
+                per_page = int(per_page)
+            if query is None:
+                query = ""
+            start = (page - 1) * per_page
+            stop = page * per_page
+            total_items = 0
+            tasks = None
+            com = None
+            
+            if completed is None:
+                total_items = Task.objects.filter(Q(title__icontains=query) |
+                                                Q(description__icontains=query)).count()
+                tasks = Task.objects.filter(Q(title__icontains=query) |
+                                                Q(description__icontains=query))[start:stop]
+            else:
+                if completed.lower() == 'true':
+                    com = True
+                elif completed.lower() == 'false':
+                    com = False
+                total_items = Task.objects.filter(completed=com).filter(Q(title__icontains=query) |
+                                                  Q(description__icontains=query)).count()
+                tasks = Task.objects.filter(completed=com).filter(Q(title__icontains=query) |
+                                                  Q(description__icontains=query))[start:stop]
+            total_pages = math.ceil(total_items/per_page)
             if tasks.exists():
                 return Response({
                     'status': 'success',
                     'data': [TaskSerializer(ne).data for ne in tasks],
-                    'message': 'task list retrieved'
+                    'message': 'task list retrieved',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
             else:
                 return Response({
                     'status': 'success',
-                    'message': 'No task found'
+                    'message': 'No task found',
+                    'page_number': page,
+                    "list_per_page": per_page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "search_query": query
                 })
         except:
             return Response({
@@ -1354,6 +2193,148 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({
                 'status': 'success',
                 'message': 'Invalid task ID'
+            })
+    @action(detail=False,
+            methods=['post'])
+    def create_task(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        description = request.data.get('description')
+        deadline = request.data.get('deadline')
+        file = request.FILES.get('file')
+        assigned_to_id = request.data.get('employee_id')
+        reward_id = request.data.get('reward_id')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                # check if position does not exist
+                task = Task.objects.get(title=title)
+                if task is not None:
+                    return Response({
+                        'status': "error",
+                        "message": "task already exists!"
+                    })
+                else:
+                    try:
+                        reward = None
+                        assigned_to = None
+                        if reward_id:
+                            reward = Reward.objects.get(id=int(reward_id))
+                        if assigned_to_id:
+                            assigned_to = Profile.objects.get(id_no=assigned_to_id)
+                        try:
+                            new_task = Task(created_by=profile, title=title, deadline=deadline,
+                                            description=description, file=file, assigned_to=assigned_to,
+                                            reward=reward)  
+                            return Response({
+                                'status': "success",
+                                "message": "task created sucessfully",
+                                "data": TaskSerializer(new_task).data,
+                            })
+                        except:
+                            return Response({
+                                'status': "error",
+                                "message": "Error while creating task"
+                            })
+                    except:
+                        return Response({
+                            'status': "error",
+                            "message": "Invalid Reward/Employee id"
+                        })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def edit_task(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        title = request.data.get('title')
+        description = request.data.get('description')
+        deadline = request.data.get('deadline')
+        file = request.FILES.get('file')
+        assigned_to_id = request.data.get('employee_id')
+        reward_id = request.data.get('reward_id')
+        completed = request.data.get('completed')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    task = Task.objects.get(id=id)
+                    task.title = title
+                    task.description = description
+                    task.deadline = deadline
+                    task.file = file
+                    task.completed = completed
+                    task.save()
+                    reward = None
+                    assigned_to = None
+                    if reward_id:
+                        reward = Reward.objects.get(id=int(reward_id))
+                        task.reward = reward
+                        task.save()
+                    if assigned_to_id:
+                        assigned_to = Profile.objects.get(id_no=assigned_to_id)
+                        task.assigned_to = assigned_to
+                    return Response({
+                        'status': "success",
+                        "message": "task edited sucessfully",
+                        "data": TaskSerializer(task).data,
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"task with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+    @action(detail=False,
+            methods=['post'])
+    def delete_task(self, request, *args, **kwargs):
+        key = request.data.get('api_token')
+        id = int(request.data.get('id'))
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    task = Task.objects.get(id=id)
+                    task.delete()
+                    return Response({
+                        'status': "success",
+                        "message": f"task \'{task.title}\' deleted sucessfully",
+                    })
+                except:
+                    return Response({
+                        "status": "error",
+                        "message": f"task with id \'{id}\' does not exist"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
             })
 
 class ComplaintViewSet(viewsets.ReadOnlyModelViewSet):

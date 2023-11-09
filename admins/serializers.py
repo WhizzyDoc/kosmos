@@ -42,7 +42,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = Profile
         fields = ['id', 'user','title', 'first_name', 'middle_name', 'last_name', 'email', 'phone_number', 'date_of_birth',
                   'address', 'appointment_date', 'position', 'department', 'id_no', 'salary', 'is_premium_user', 'image',
-                  'api_token']
+                  'api_token', 'city', 'state', 'nationality']
 
 class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -58,12 +58,9 @@ class BankAccountSerializer(serializers.ModelSerializer):
         
 class EventSerializer(serializers.ModelSerializer):
     organizer = ProfileSerializer(many=False, read_only=True)
-    invitees = EmployeeSerializer(many=True, read_only=True)
-    attending = EmployeeSerializer(many=True, read_only=True)
     class Meta:
         model = Event
-        fields = ['id', 'organizer', 'title', 'description', 'date', 'type', 'location', 'link', 'invitation', 'directions',
-                  'invitees', 'attending']
+        fields = ['id', 'organizer', 'title', 'description', 'date', 'location', 'link', 'invitation', 'directions']
 
 class MeetingSerializer(serializers.ModelSerializer):
     departments = DepartmentSerializer(many=True, read_only=True)
@@ -89,12 +86,11 @@ class RewardSerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.ModelSerializer):
     created_by = EmployeeSerializer(many=False, read_only=True)
     reward = RewardSerializer(many=False, read_only=True)
-    assigned_to = EmployeeSerializer(many=True, read_only=True)
-    completed_by = EmployeeSerializer(many=True, read_only=True)
+    assigned_to = EmployeeSerializer(many=False, read_only=True)
     class Meta:
         model = Task
-        fields = ['id', 'title', 'description', 'created_by', 'file', 'type', 'reward', 'assigned_to',
-                  'completed', 'completed_by']
+        fields = ['id', 'title', 'description', 'created_by', 'file', 'reward', 'assigned_to',
+                  'completed', 'deadline']
 
 class ComplaintSerializer(serializers.ModelSerializer):
     employee = EmployeeSerializer(many=False, read_only=True)
