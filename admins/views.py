@@ -277,7 +277,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': f"Invalid password",
             })
         try:
-            new_user = User.objects.create(email=email, first_name=f_name, last_name=l_name, username=username, is_superuser=True)
+            new_user = User.objects.create(email=email, first_name=f_name, last_name=l_name, username=username, is_superuser=True, is_staff=True)
             new_user.set_password(password)
             new_user.save()
             new_user.groups.add(admin_group)
