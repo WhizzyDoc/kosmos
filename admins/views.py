@@ -6,6 +6,8 @@ from .serializers import *
 from .bank import bank_list
 from .utils import create_action
 from django.shortcuts import get_object_or_404
+from django.core.mail import send_mail
+from django.utils.crypto import get_random_string
 from django.contrib.auth.models import User, Group
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -13,6 +15,7 @@ from rest_framework.authentication import BasicAuthentication, SessionAuthentica
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from rest_framework.decorators import action
+from rest_framework import status
 from django.contrib.auth import login, authenticate, logout
 import secrets
 import re
@@ -123,13 +126,13 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             methods=['post'])
     def create_site_info(self, request, *args, **kwargs):
         if request.method == 'POST':
-            api_token = request.data.get('api_token')
-            title = request.data.get('title')
-            tagline = request.data.get('tagline')
-            about = request.data.get('about')
-            email = request.data.get("email")
-            objectives = request.data.get('objectives')
-            mission = request.data.get('mission')
+            api_token = request.POST.get('api_token')
+            title = request.POST.get('title')
+            tagline = request.POST.get('tagline')
+            about = request.POST.get('about')
+            email = request.POST.get("email")
+            objectives = request.POST.get('objectives')
+            mission = request.POST.get('mission')
             logo = None
             if request.FILES:
                 logo = request.FILES.get('logo')
@@ -176,13 +179,13 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             methods=['post'])
     def edit_site_info(self, request, *args, **kwargs):
         if request.method == 'POST':
-            api_token = request.data.get('api_token')
-            title = request.data.get('title')
-            tagline = request.data.get('tagline')
-            about = request.data.get('about')
-            email = request.data.get("email")
-            objectives = request.data.get('objectives')
-            mission = request.data.get('mission')
+            api_token = request.POST.get('api_token')
+            title = request.POST.get('title')
+            tagline = request.POST.get('tagline')
+            about = request.POST.get('about')
+            email = request.POST.get("email")
+            objectives = request.POST.get('objectives')
+            mission = request.POST.get('mission')
             logo = request.FILES.get('logo')
             try:
                 profile = Profile.objects.get(api_token=api_token)
@@ -251,15 +254,15 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_admin_account(self, request, *args, **kwargs):
-        email = request.data.get('email')
-        f_name = request.data.get('first_name')
-        l_name = request.data.get('last_name')
-        m_name = request.data.get('middle_name')
-        nationality = request.data.get('nationality')
-        phone_number = request.data.get('phone_number')
+        email = request.POST.get('email')
+        f_name = request.POST.get('first_name')
+        l_name = request.POST.get('last_name')
+        m_name = request.POST.get('middle_name')
+        nationality = request.POST.get('nationality')
+        phone_number = request.POST.get('phone_number')
         image = request.FILES.get('image')
-        username = request.data.get('username')
-        password = request.data.get('password')
+        username = request.POST.get('username')
+        password = request.POST.get('password')
         #check if email is valid
         if not is_valid_email(email):
             return Response({
@@ -277,6 +280,12 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': f"Invalid password",
             })
         try:
+            admin = User.objects.get(groups=admin_group)
+            if admin is not None:
+                return Response({
+                    'status': 'error',
+                    'message': f'An admin account already exists.',
+                })
             new_user = User.objects.create(email=email, first_name=f_name, last_name=l_name, username=username, is_superuser=True, is_staff=True)
             new_user.set_password(password)
             new_user.save()
@@ -303,25 +312,104 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': f'Error occured while creating account',
             })
-        
+    
+    @action(detail=False,
+            methods=['post'])
+    def forgot_password(self, request, *args, **kwargs):
+        email = request.POST.get('email')
+        if not is_valid_email(email):
+            return Response({
+                'status': 'error',
+                'message': f"Invalid email",
+            }) 
+        try: 
+            user = User.objects.get(email=email)
+            if admin_group in user.groups.all():
+                token = get_random_string(length=32)
+                user.set_password(token)
+                user.save()
+                # send email
+                subject = 'Password Reset Request'
+                message = f'Your new temporary password is: {token}'
+                from_email = 'your_email@example.com'
+                recipient_list = [email]
+                send_mail(subject, message, from_email, recipient_list, fail_silently=False)
+                return Response({
+                    'status': 'success',
+                    'message': f'Password reset instructions has been sent to {email}'
+                })
+            else:
+                return Response({
+                'status': 'error',
+                'message': f"Unauthorized email",
+            }) 
+        except User.DoesNotExist: 
+            return Response({
+                'status': 'error',
+                'message': f"Unregistered email",
+            }) 
+    @action(detail=False,
+            methods=['post'])
+    def change_password(self, request, *args, **kwargs):
+        old_password = request.POST.get('old_password')
+        new_password = request.POST.get('new_password')
+        key = request.POST.get('api_token')
+        if not is_valid_password(new_password):
+            return Response({
+                'status': 'error',
+                'message': f"Invalid new password combination",
+            }) 
+        try:
+            profile = Profile.objects.get(api_token=key)
+            admin = profile.user
+            if admin_group in admin.groups.all():
+                try:
+                    user = authenticate(request, username=admin.username, password=old_password)
+                    if user is not None:
+                        user.set_password(new_password)
+                        user.save()
+                        return Response({
+                            'status': "success",
+                            "message": "password changed successfully",
+                        })
+                    else:
+                        return Response({
+                            'status': "error",
+                            "message": "Incorrect password",
+                        }) 
+                except: 
+                    return Response({
+                        'status': "error",
+                        "message": "error while changing password",
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
         
     @action(detail=False,
             methods=['post'])
     def create_employee_account(self, request, *args, **kwargs):
-        email = request.data.get('email')
-        title = request.data.get('title')
-        f_name = request.data.get('first_name')
-        l_name = request.data.get('last_name')
-        m_name = request.data.get('middle_name')
-        city = request.data.get('city')
-        state = request.data.get('state')
-        nationality = request.data.get('nationality')
-        phone_number = request.data.get('phone_number')
-        a_type = request.data.get('account_type')
-        salary = request.data.get('salary')
-        position = request.data.get('position')
-        department = request.data.get('department')
-        key = request.data.get('api_token')
+        email = request.POST.get('email')
+        title = request.POST.get('title')
+        f_name = request.POST.get('first_name')
+        l_name = request.POST.get('last_name')
+        m_name = request.POST.get('middle_name')
+        city = request.POST.get('city')
+        state = request.POST.get('state')
+        nationality = request.POST.get('nationality')
+        phone_number = request.POST.get('phone_number')
+        a_type = request.POST.get('account_type')
+        salary = request.POST.get('salary')
+        position = request.POST.get('position')
+        department = request.POST.get('department')
+        key = request.POST.get('api_token')
         try:
             profile = Profile.objects.get(api_token=key)
             user_p = profile.user
@@ -421,10 +509,10 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def register(self, request, *args, **kwargs):
-        email = request.data.get('email')
-        dob = request.data.get('date_of_birth')
-        a_date = request.data.get('appointment_date')
-        address = request.data.get('address')
+        email = request.POST.get('email')
+        dob = request.POST.get('date_of_birth')
+        a_date = request.POST.get('appointment_date')
+        address = request.POST.get('address')
         image = request.FILES.get('image')
         #id_no = ''
         # check if post email data is valid
@@ -462,8 +550,8 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def authentication(self, request, *args, **kwargs):
-        username = request.data.get('username')
-        password = request.data.get('password')
+        username = request.POST.get('username')
+        password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
         if user is not None:
             if user.is_active:
@@ -493,7 +581,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def admin_logout(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
+        key = request.POST.get('api_token')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -517,7 +605,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def get_admin_profile(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
+        key = request.POST.get('api_token')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -540,7 +628,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_admin_profile(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
+        key = request.POST.get('api_token')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -648,8 +736,8 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_position(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -683,9 +771,9 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_position(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -718,8 +806,8 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_position(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -832,8 +920,8 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_department(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -870,9 +958,9 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_department(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -881,6 +969,9 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                     department = Department.objects.get(id=id)
                     department.title = title
                     department.save()
+                    group_chat = GroupChat.objects.get(department=department)
+                    group_chat.title = f'Group chat for {title}'
+                    group_chat.save()
                     Log.objects.create(user=profile, action=f"edited department {department.title}")
                     return Response({
                         'status': "success",
@@ -905,16 +996,18 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_department(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
             if admin_group in user.groups.all():
                 try:
                     department = Department.objects.get(id=id)
+                    group_chat = GroupChat.objects.get(department=department)
+                    group_chat.delete()
                     department.delete()
-                    Log.objects.create(user=profile, action=f"deleted department {department.title}")
+                    Log.objects.create(user=profile, action=f"deleted department {department.title} and its group chat")
                     return Response({
                         'status': "success",
                         "message": f"department \'{department.title}\' deleted sucessfully",
@@ -1007,9 +1100,9 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_bank(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        name = request.data.get('bank_name')
-        code = request.data.get('bank_code')
+        key = request.POST.get('api_token')
+        name = request.POST.get('bank_name')
+        code = request.POST.get('bank_code')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1043,10 +1136,10 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_bank(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        name = request.data.get('bank_name')
-        code = request.data.get('bank_code')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        name = request.POST.get('bank_name')
+        code = request.POST.get('bank_code')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1083,8 +1176,8 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_bank(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1168,8 +1261,8 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_category(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
         slug = slugify(title)
         try:
             profile = Profile.objects.get(api_token=key)
@@ -1204,10 +1297,10 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_category(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
         slug = slugify(title)
-        id = int(request.data.get('id'))
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1241,8 +1334,8 @@ class NewsCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_category(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1456,8 +1549,8 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def deactivate_employee(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = request.data.get('id_number')
+        key = request.POST.get('api_token')
+        id = request.POST.get('id_number')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1489,8 +1582,8 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_employee(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = request.data.get('id_number')
+        key = request.POST.get('api_token')
+        id = request.POST.get('id_number')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1667,13 +1760,13 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_news(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
         slug = slugify(title)
-        post = request.data.get('post')
-        active = request.data.get('active')
-        verified = request.data.get('verified')
-        cat_id = int(request.data.get('category_id'))
+        post = request.POST.get('post')
+        active = request.POST.get('active')
+        verified = request.POST.get('verified')
+        cat_id = int(request.POST.get('category_id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1715,14 +1808,14 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_news(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('news_id'))
-        title = request.data.get('title')
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('news_id'))
+        title = request.POST.get('title')
         slug = slugify(title)
-        post = request.data.get('post')
-        active = request.data.get('active')
-        verified = request.data.get('verified')
-        cat_id = int(request.data.get('category_id'))
+        post = request.POST.get('post')
+        active = request.POST.get('active')
+        verified = request.POST.get('verified')
+        cat_id = int(request.POST.get('category_id'))
         
         try:
             profile = Profile.objects.get(api_token=key)
@@ -1774,8 +1867,8 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_news(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1889,10 +1982,10 @@ class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_meeting(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        description = request.data.get('description')
-        ids = request.data.get('members', [])
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        description = request.POST.get('description')
+        ids = request.POST.get('members', [])
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1924,12 +2017,12 @@ class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_meeting(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        description = request.data.get('description')
-        mem_ids = request.data.get('members', [])
-        att_ids = request.data.get('attended_by', [])
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        description = request.POST.get('description')
+        mem_ids = request.POST.get('members', [])
+        att_ids = request.POST.get('attended_by', [])
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1973,8 +2066,8 @@ class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_meeting(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2089,14 +2182,14 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_event(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        description = request.data.get('description')
-        date = request.data.get('date')
-        location = request.data.get('location')
-        link = request.data.get('link')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        description = request.POST.get('description')
+        date = request.POST.get('date')
+        location = request.POST.get('location')
+        link = request.POST.get('link')
         invitation = request.FILES.get('invitation')
-        directions = request.data.get('directions')
+        directions = request.POST.get('directions')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2133,15 +2226,15 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_event(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        description = request.data.get('description')
-        date = request.data.get('date')
-        location = request.data.get('location')
-        link = request.data.get('link')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        description = request.POST.get('description')
+        date = request.POST.get('date')
+        location = request.POST.get('location')
+        link = request.POST.get('link')
         invitation = request.FILES.get('invitation')
-        directions = request.data.get('directions')
-        id = int(request.data.get('id'))
+        directions = request.POST.get('directions')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2180,8 +2273,8 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_event(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2310,13 +2403,13 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_task(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        description = request.data.get('description')
-        deadline = request.data.get('deadline')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        description = request.POST.get('description')
+        deadline = request.POST.get('deadline')
         file = request.FILES.get('file')
-        assigned_to_id = request.data.get('employee_id')
-        reward_id = request.data.get('reward_id')
+        assigned_to_id = request.POST.get('employee_id')
+        reward_id = request.POST.get('reward_id')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2370,15 +2463,15 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_task(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        description = request.data.get('description')
-        deadline = request.data.get('deadline')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        description = request.POST.get('description')
+        deadline = request.POST.get('deadline')
         file = request.FILES.get('file')
-        assigned_to_id = request.data.get('employee_id')
-        reward_id = request.data.get('reward_id')
-        completed = request.data.get('completed')
-        id = int(request.data.get('id'))
+        assigned_to_id = request.POST.get('employee_id')
+        reward_id = request.POST.get('reward_id')
+        completed = request.POST.get('completed')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2424,8 +2517,8 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_task(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2550,10 +2643,10 @@ class ComplaintViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_complaint(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        addressed = request.data.get('addressed')
-        solution = request.data.get('solution')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        addressed = request.POST.get('addressed')
+        solution = request.POST.get('solution')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2587,8 +2680,8 @@ class ComplaintViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_complaint(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2713,10 +2806,10 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_query(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        query = request.data.get('query')
-        id = request.data.get('employee_id')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        query = request.POST.get('query')
+        id = request.POST.get('employee_id')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2756,12 +2849,12 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_query(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        addressed = request.data.get('addressed')
-        title = request.data.get('title')
-        q = request.data.get('query')
-        id_no = request.data.get('employee_id')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        addressed = request.POST.get('addressed')
+        title = request.POST.get('title')
+        q = request.POST.get('query')
+        id_no = request.POST.get('employee_id')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2797,8 +2890,8 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_query(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2920,8 +3013,8 @@ class LogViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_log(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -3033,8 +3126,8 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_notification(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -3146,9 +3239,9 @@ class RewardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def create_reward(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        description = request.data.get('description')
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        description = request.POST.get('description')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -3182,10 +3275,10 @@ class RewardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_reward(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        title = request.data.get('title')
-        description = request.data.get('description')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        title = request.POST.get('title')
+        description = request.POST.get('description')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -3219,8 +3312,8 @@ class RewardViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_reward(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -3335,8 +3428,8 @@ class BankAccountViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def delete_bank_account(self, request, *args, **kwargs):
-        key = request.data.get('api_token')
-        id = int(request.data.get('id'))
+        key = request.POST.get('api_token')
+        id = int(request.POST.get('id'))
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
