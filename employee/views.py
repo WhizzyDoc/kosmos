@@ -296,3 +296,86 @@ class AttendingEventView(UpdateAPIView):
             return Response({
                 "Error": "An error occured"
             }, status = status.HTTP_400_BAD_REQUEST)
+
+class ComplaintView(ListCreateAPIView):
+    queryset = Complaint.objects.all()
+    lookup_field = "api_token"
+    serializer_class = ComplaintSerializer
+    permission_classes = [AllowAny]
+
+    def create(self, request, api_token, *args, **kwargs):
+        profile = Profile.objects.get(api_token = api_token)
+        user_pk = profile.pk
+
+        data = request.data.copy()
+        
+        data["employee"] = user_pk
+
+        serializer = self.serializer_class(data = data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status = status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+
+    def get(self, request, api_token, *args, **kwargs):
+        serializer = self.serializer_class(Complaint.objects.all(), many = True)
+
+        return Response(serializer.data)
+
+class RetrieveUpdateDeleteComplaintView(RetrieveUpdateDestroyAPIView):
+    queryset = Complaint.objects.all()
+    serializer_class = ComplaintSerializer
+    lookup_url_kwarg = 'id'
+    permission_classes = [AllowAny]
+
+    def get(self, request, id, *args, **kwargs):
+        complaint = self.get_object()
+        serializer = self.serializer_class(complaint)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def update(self, request, api_token, id, *args, **kwargs):
+        try:
+            user_profile = Profile.objects.get(api_token=api_token)
+        except Profile.DoesNotExist:
+            return Response({"Error": "Invalid api_token"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        complaint = Complaint.objects.get(id=id)
+
+        # Check if the user is the owner of the complaint or an admin
+        if user_profile == complaint.employee or user_profile.is_premium_user:
+            # Owner or admin (identified by is_premium_user) can edit title, complaint, and proposed_solution
+            if user_profile.is_premium_user and complaint.employee != user_profile:
+                # Admin can only edit title, complaint, and proposed_solution for their own complaints
+                if 'title' in request.data or 'complaint' in request.data or 'proposed_solution' in request.data:
+                    return Response({"Error": "Admin cannot edit title, complaint or proposed solution"}, status=status.HTTP_403_FORBIDDEN)
+            # Allowing admin to edit solution and addressed fields
+            elif 'solution' in request.data or 'addressed' in request.data:
+                return Response({"Error": "Cant add Solution to your own complaints"}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            return Response({"Error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data.copy()
+
+        serializer = self.serializer_class(instance=complaint, data=data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"Error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    def destroy(self, request, api_token, id, *args, **kwargs):
+        try:
+            user_profile = Profile.objects.get(api_token=api_token)
+        except Profile.DoesNotExist:
+            return Response({"Error": "Invalid api_token"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        complaint = Complaint.objects.get(id=id)
+
+        if user_profile == complaint.employee or user_profile.is_premium_user:
+            complaint.delete()
+            return Response({"Message": "Complaint deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+        else:
+            return Response({"Error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
