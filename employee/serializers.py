@@ -1,6 +1,6 @@
 import re
 from rest_framework.serializers import ModelSerializer
-from main.models import Profile, BankAccount, Bank
+from main.models import Profile, BankAccount, Bank, Complaint
 from rest_framework.validators import ValidationError
 from rest_framework import serializers
 from admins.models import Event
@@ -103,5 +103,23 @@ class EventSerializer(ModelSerializer):
                 raise ValidationError("An event with this title exists already.")
         return value
 
-    # def validate_organizer(self, value):
-    #     request_method = self.context.get("request_method")
+class ComplaintSerializer(ModelSerializer):
+    class Meta:
+        model = Complaint
+        fields = "__all__"
+
+    def validate_title(self, value):
+        if value.strip() == "":
+            raise ValidationError("Title cant be blank!")
+        return value
+
+    def validate_complaint(self, value):
+        if value.strip() == "":
+            raise ValidationError("Complaint can't be blank!")
+
+        return value
+
+    def validate_proposed_solution(self, value):
+        if value.strip() == "":
+            raise ValidationError("You must enter a proposed solution!")
+        return value
