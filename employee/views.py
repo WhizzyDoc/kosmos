@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.mixins import CreateModelMixin
-from main.models import Profile, BankAccount, Bank
+from main.models import Profile, BankAccount, Bank, Complaint
 from admins.views import generate_token
 from admins.models import *
 from .serializers import *
@@ -53,7 +53,6 @@ class ProfileView(RetrieveUpdateDestroyAPIView):
     serializer_class = ProfileSerializer
 
     def update(self, request, *args, **kwargs):
-        response =  super().update(request, *args, **kwargs)
 
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
@@ -65,7 +64,9 @@ class ProfileView(RetrieveUpdateDestroyAPIView):
 
             return Response(serializer.data)
 
-        else: return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else: 
+            print(serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # Create Bank Account 
@@ -79,11 +80,16 @@ class BankAccountCreateView(CreateAPIView):
 
     def create(self, request, api_token, *args, **kwargs):
         # Get the user's primary key based on the provided API token
-        user = Profile.objects.get(api_token=api_token)
-        user_pk = user.pk
+        try:
+            user = Profile.objects.get(api_token=api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Can't find user"
+            },status = status.HTTP_404_NOT_FOUND)
 
         # Get the bank's primary key based on the provided bank name
-        bank_name = request.data["bank"]
+        bank_name = request.data["bank"].lower()
         try:
             bank = Bank.objects.get(bank_name=bank_name)
             bank_pk = bank.pk
@@ -111,8 +117,14 @@ class BankAccountRetrieveUpdateViewDeleteView(RetrieveUpdateDestroyAPIView):
 
     def get(self, request, api_token, *args, **kwargs):
         # Get the user's primary key based on the provided API token
-        user_profile = Profile.objects.get(api_token=api_token)
-        user_pk = user_profile.pk
+        try:
+            user = Profile.objects.get(api_token=api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Can't find user"
+                },status = status.HTTP_404_NOT_FOUND)
+
         # Retrieve all bank accounts for this user
         bank_account = BankAccount.objects.get(user=user_pk)
 
@@ -123,14 +135,23 @@ class BankAccountRetrieveUpdateViewDeleteView(RetrieveUpdateDestroyAPIView):
         )
 
     def update(self, request,api_token, *args, **kwargs):
-        user_profile = Profile.objects.get(api_token=api_token)
-        user_pk = user_profile.pk
+        try:
+            user = Profile.objects.get(api_token=api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Can't find user"
+                },status = status.HTTP_404_NOT_FOUND)
         bank_account = BankAccount.objects.get(user=user_pk)
         data = request.data.copy()
 
         data["user"] = user_pk
 
-        bank_name = request.data["bank"]
+        if "bank" in request.data:
+            bank_name = data["bank"].lower()
+        else:
+            bank_name = BankAccount.objects.get(user = user).bank.bank_name
+        
         try:
             bank = Bank.objects.get(bank_name=bank_name)
             bank_pk = bank.pk
@@ -184,7 +205,7 @@ class EmployeeListView(ListCreateAPIView):
 
 
 
-class CreateListEventView(ListCreateAPIView, UpdateAPIView, DestroyAPIView):
+class CreateListEventView(ListCreateAPIView):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
     permission_classes = [AllowAny]
@@ -192,110 +213,20 @@ class CreateListEventView(ListCreateAPIView, UpdateAPIView, DestroyAPIView):
 
     def get(self, request,pk, *args, **kwargs):
         # api_token = pk
-        type_ = self.request.query_params.get('type')
-        print(pk)
-        user = Profile.objects.get(api_token=pk)
-        if user.is_premium_user:
-            events =  Event.objects.all()
-        if type_ == "open":
-            events =  Event.objects.filter(invitees=user, type = "open")
-        elif type_ == "invitation":
-            events = Event.objects.filter(invitees = user, type = "invitation")
-        else:
-            events = Event.objects.filter(invitees = user)
-
-        serializer = EventSerializer(events, many=True)
-
-        return Response(serializer.data)
-
-    def create(self, request, pk, *args, **kwargs):
-        user_profile = Profile.objects.get(api_token = pk)
-        user_pk = user_profile.pk
-        if user_profile.is_premium_user:
-            data = request.data.copy()
-            data["organizer"] = user_pk
-            data["attending"] = []
-            serializer = self.serializer_class(data = data)
-            # print(serializer.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        else:
-            return Response({
-                "Error": "You cant perform this action"
-            }, status=status.HTTP_401_UNAUTHORIZED)
-
-class RetrieveUpdateDestroyEventView(RetrieveUpdateDestroyAPIView):
-    queryset = Event.objects.all()
-    serializer_class = EventSerializer
-    permission_classes = [AllowAny]
-    lookup_field = "id"
-
-    def update(self, request, api_token, id, *args, **kwargs):
-
-        event = Event.objects.get(id = id)
-        user_profile = Profile.objects.get(api_token = api_token)
-        user_pk = user_profile.pk
-
-        if user_profile.is_premium_user:
-            data = request.data.copy()
-            data["organizer"] = user_pk
-            data["attending"] = event.attending
-            serializer = self.serializer_class(data = data)
-
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status = status.HTTP_200_OK)
-            else:
-                return Response(serializer.error, status = status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response({
-                "Error": "Can't perform this action"
-            }, status=status.HTTP_401_UNAUTHORIZED)
-
-
-
-    def destroy(self, request, api_token, id, *args, **kwargs):
-        user_profile = Profile.objects.get(api_token = api_token)
-        user_pk = user_profile.pk
-
-        if user_profile.is_premium_user:
-            event = get_object_or_404(Event, id=id)
-            event.delete()
-            return Response({
-                "Deleted": "You've deleted this event"
-            }, status = status.HTTP_200_OK)
-        else:
-            return Response({
-                "Error": "You can't perform that action"
-            }, status = status.HTTP_401_UNAUTHORIZED)
-
-class AttendingEventView(UpdateAPIView):
-    queryset = Event.objects.all()
-    serializer_class = EventSerializer
-    permission_classes = [AllowAny]
-    lookup_field = "id"
-
-    def update(self, request,api_token,id, *args, **kwargs):
         try:
-            event = Event.objects.get(id = id)
-            user_profile = Profile.objects.get(api_token = api_token)
-            user_pk = user_profile.pk
-
-            if event.invitees.filter(pk=user_pk).exists():
-                event.attending.add(user_profile)
-                event.save()
-                return Response({
-                    "Saved": "You successfully accepted the invite"
-                }, status=status.HTTP_200_OK)
-
+            user = Profile.objects.get(api_token=pk)
         except:
             return Response({
-                "Error": "An error occured"
+                "Error": "Cant complete your request"
             }, status = status.HTTP_400_BAD_REQUEST)
+
+        return super(CreateListEventView, self).list(request, *args, **kwargs)
+
+class RetrieveUpdateDestroyEventView(RetrieveAPIView):
+    queryset = Event.objects.all()
+    serializer_class = EventSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "id"
 
 class ComplaintView(ListCreateAPIView):
     queryset = Complaint.objects.all()
@@ -320,7 +251,19 @@ class ComplaintView(ListCreateAPIView):
             return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
 
     def get(self, request, api_token, *args, **kwargs):
-        serializer = self.serializer_class(Complaint.objects.all(), many = True)
+        try:
+            profile = Profile.objects.get(api_token = api_token)
+            user_pk = profile.pk
+        except:
+            return Response({
+                "Error": "Can't complete this action"
+            }, status = status.HTTP_400_BAD_REQUEST)
+        filter_by = self.request.query_params.get("by")
+        if filter_by == "user":
+            serializer = self.serializer_class(Complaint.objects.filter(employee = user_pk), many = True)
+        else:
+            serializer = self.serializer_class(Complaint.objects.all(), many = True)
+
 
         return Response(serializer.data)
 
@@ -342,29 +285,28 @@ class RetrieveUpdateDeleteComplaintView(RetrieveUpdateDestroyAPIView):
             return Response({"Error": "Invalid api_token"}, status=status.HTTP_401_UNAUTHORIZED)
 
         complaint = Complaint.objects.get(id=id)
-
+        print(user_profile, complaint.employee)
         # Check if the user is the owner of the complaint or an admin
-        if user_profile == complaint.employee or user_profile.is_premium_user:
-            # Owner or admin (identified by is_premium_user) can edit title, complaint, and proposed_solution
-            if user_profile.is_premium_user and complaint.employee != user_profile:
-                # Admin can only edit title, complaint, and proposed_solution for their own complaints
-                if 'title' in request.data or 'complaint' in request.data or 'proposed_solution' in request.data:
-                    return Response({"Error": "Admin cannot edit title, complaint or proposed solution"}, status=status.HTTP_403_FORBIDDEN)
-            # Allowing admin to edit solution and addressed fields
+        if user_profile == complaint.employee:
+
+            if 'title' in request.data or 'complaint' in request.data or 'proposed_solution' in request.data:
+                data = request.data.copy()
+                serializer = self.serializer_class(instance=complaint, data=data, partial=True)
+                
+                if serializer.is_valid():
+                    serializer.save()
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+                else:
+                    return Response({"Error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Allowing admin to edit solution and addressed fields
             elif 'solution' in request.data or 'addressed' in request.data:
-                return Response({"Error": "Cant add Solution to your own complaints"}, status=status.HTTP_403_FORBIDDEN)
+                    return Response({"Error": "Cant add Solution to your own complaints"}, status=status.HTTP_403_FORBIDDEN)
         else:
             return Response({"Error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
 
-        data = request.data.copy()
 
-        serializer = self.serializer_class(instance=complaint, data=data, partial=True)
 
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response({"Error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
     def destroy(self, request, api_token, id, *args, **kwargs):
         try:
@@ -374,7 +316,7 @@ class RetrieveUpdateDeleteComplaintView(RetrieveUpdateDestroyAPIView):
 
         complaint = Complaint.objects.get(id=id)
 
-        if user_profile == complaint.employee or user_profile.is_premium_user:
+        if user_profile.pk == complaint.employee:
             complaint.delete()
             return Response({"Message": "Complaint deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
         else:
