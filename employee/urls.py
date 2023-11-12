@@ -14,5 +14,6 @@ urlpatterns = [
     path("employees", views.EmployeeListView.as_view(), name = "employees"),
     path("events/<str:pk>", views.CreateListEventView.as_view(), name = "events"),
     path("event/<str:api_token>/<str:id>", views.RetrieveUpdateDestroyEventView.as_view(), name="event"),
-    path("event/accept/<str:api_token>/<str:id>", views.AttendingEventView.as_view(), name="accept-invitation")
+    path("complaint/<str:api_token>", views.ComplaintView.as_view(), name = "complaint"),
+    path("complaint/action/<str:api_token>/<str:id>", views.RetrieveUpdateDeleteComplaintView.as_view(), name = "get-complaint")
 ]
