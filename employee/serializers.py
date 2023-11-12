@@ -53,8 +53,12 @@ class BankAccountSerializer(ModelSerializer):
             raise ValidationError("Account number can only contain numbers!")
         return value
 
+
     def validate_account_name(self, value):
-        if not re.match(r'^[A-Za-z]+$', value):
+        def contains_number(s):
+            return any(char.isdigit() for char in s)
+
+        if contains_number(value):
             raise ValidationError("Name can only be texts")
         return value
 
@@ -67,8 +71,7 @@ class BankAccountUpdateSerializer(ModelSerializer):
     class Meta:
         model = BankAccount
         exclude = ["user"]
-        print(0)
-    # api_key = serializers.CharField(write_only=True, required=True)
+
 
     def validate_api_key(self, value):
         # Retrieve the associated Profile based on the provided api_key
@@ -95,13 +98,6 @@ class EventSerializer(ModelSerializer):
     class Meta:
         model = Event
         fields = '__all__'
-
-    def validate_title(self, value):
-        request_method = self.context.get("request_method")
-        if request_method == "POST":
-            if Event.objects.filter(title = value).exists():
-                raise ValidationError("An event with this title exists already.")
-        return value
 
 class ComplaintSerializer(ModelSerializer):
     class Meta:
