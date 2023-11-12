@@ -186,11 +186,6 @@ class BankAccountRetrieveUpdateViewDeleteView(RetrieveUpdateDestroyAPIView):
                 "Error": "Sorry, an error occured!"
             }, status = status.HTTP_400_BAD_REQUEST)
 
-        
-
-        
-
-
 
 from .filters import ProfileFilter
 from django_filters.rest_framework import DjangoFilterBackend
@@ -292,7 +287,7 @@ class RetrieveUpdateDeleteComplaintView(RetrieveUpdateDestroyAPIView):
             if 'title' in request.data or 'complaint' in request.data or 'proposed_solution' in request.data:
                 data = request.data.copy()
                 serializer = self.serializer_class(instance=complaint, data=data, partial=True)
-                
+
                 if serializer.is_valid():
                     serializer.save()
                     return Response(serializer.data, status=status.HTTP_200_OK)
@@ -321,3 +316,39 @@ class RetrieveUpdateDeleteComplaintView(RetrieveUpdateDestroyAPIView):
             return Response({"Message": "Complaint deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
         else:
             return Response({"Error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+
+
+class NewsView(ListAPIView):
+    queryset = News.objects.filter(active = True)
+    serializer_class = NewsSerializer
+    permission_classes = [AllowAny]
+
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user = Profile.objects.get(api_token = api_token)
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.serializer_class(News.objects.filter(active = True), many = True )
+
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
+class RetrieveNewsView(RetrieveAPIView):
+    queryset = News.objects.filter(active = True)
+    serializer_class = NewsSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "id"
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user = Profile.objects.get(api_token = api_token)
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.serializer_class(self.get_object())
+
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
