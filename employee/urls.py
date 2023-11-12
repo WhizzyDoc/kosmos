@@ -15,5 +15,7 @@ urlpatterns = [
     path("events/<str:pk>", views.CreateListEventView.as_view(), name = "events"),
     path("event/<str:api_token>/<str:id>", views.RetrieveUpdateDestroyEventView.as_view(), name="event"),
     path("complaint/<str:api_token>", views.ComplaintView.as_view(), name = "complaint"),
-    path("complaint/action/<str:api_token>/<str:id>", views.RetrieveUpdateDeleteComplaintView.as_view(), name = "get-complaint")
+    path("complaint/action/<str:api_token>/<str:id>", views.RetrieveUpdateDeleteComplaintView.as_view(), name = "get-complaint"),
+    path("news/<str:api_token>", views.NewsView.as_view(), name = "news"),
+    path("news/<str:api_token>/<str:id>", views.RetrieveNewsView.as_view(), name = "read news")
 ]
