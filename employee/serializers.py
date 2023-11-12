@@ -3,7 +3,7 @@ from rest_framework.serializers import ModelSerializer
 from main.models import Profile, BankAccount, Bank, Complaint
 from rest_framework.validators import ValidationError
 from rest_framework import serializers
-from admins.models import Event
+from admins.models import *
 class ProfileSerializer(ModelSerializer):
     class Meta:
         model = Profile
@@ -119,3 +119,8 @@ class ComplaintSerializer(ModelSerializer):
         if value.strip() == "":
             raise ValidationError("You must enter a proposed solution!")
         return value
+
+class NewsSerializer(ModelSerializer):
+    class Meta:
+        model = News
+        exclude = ["active", "verified"]
