@@ -1,12 +1,12 @@
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.models import User
 from rest_framework.generics import GenericAPIView, RetrieveUpdateDestroyAPIView, ListCreateAPIView, CreateAPIView, ListAPIView, RetrieveAPIView, UpdateAPIView, DestroyAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.mixins import CreateModelMixin
-from main.models import Profile, BankAccount, Bank, Complaint
+from main.models import Profile, BankAccount, Bank, Complaint, GroupChat, ChatMessage
 from admins.views import generate_token
 from admins.models import *
 from .serializers import *
@@ -351,4 +351,103 @@ class RetrieveNewsView(RetrieveAPIView):
         serializer = self.serializer_class(self.get_object())
 
         return Response(serializer.data, status = status.HTTP_200_OK)
+
+class GroupChats(RetrieveAPIView):
+    queryset = GroupChat.objects.all()
+    serializer_class = GroupChatSerializer
+    permission_classes = [AllowAny]
+
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user = Profile.objects.get(api_token = api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "error": "An error occured!"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        groups = user.department_group.all()
+
+        serializer = self.serializer_class(groups, many = True)
+
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
+class GroupChatDetailsView(RetrieveAPIView):
+    queryset = GroupChat.objects.all()
+    serializer_class = GroupChatSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "id"
+
+    def get(self, request, api_token,id, *args, **kwargs):
+        try:
+            user = Profile.objects.get(api_token = api_token)
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+        if user.department_group.filter(id = id).exists():
+            serializer = self.serializer_class(self.get_object())
+        else:
+            return Response({
+                "Error": "Sorry, you are not in this group"
+            }, status = status.HTTP_401_UNAUTHORIZED)
+
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
+class ChatMessageCreateView(ListCreateAPIView):
+    queryset = ChatMessage.objects.all()
+    serializer_class = ChatMessageSerializer
+    permission_classes = [AllowAny]
+
+    def get(self, request, api_token, pk, *args, **kwargs):
+        id = pk
+        try:
+            user = Profile.objects.get(api_token = api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+        if user.department_group.filter(id = id).exists():
+            serializer = ChatMessageSerializerGet(ChatMessage.objects.filter(group = id), many = True)
+            return Response(serializer.data, status = status.HTTP_200_OK)
+        else:
+            return Response({
+                "Error": "Sorry, you are not in this group"
+            })
+
+
+    def create(self, request, api_token, pk,  *args, **kwargs):
+        id = pk
+        try:
+            user = Profile.objects.get(api_token = api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+        if user.department_group.filter(id = id).exists():
+            # try:
+            group = GroupChat.objects.get(id = id)
+
+            data = request.data.copy()
+            data["group"] = group.pk
+            data["sender"] = user_pk
+            
+            serializer = self.serializer_class(data = data)
+            if serializer.is_valid():
+                serializer.save()
+                
+                return Response({
+                    "message": serializer.data["message"],
+                    "date": serializer.data["date"],
+                    "group": group.title,
+                    "sender": user.first_name + " " + user.last_name
+                }, status = status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({
+                "Error": "Sorry, you are not in this group"
+            }, status = status.HTTP_401_UNAUTHORIZED)
 
