@@ -1,6 +1,6 @@
 import re
 from rest_framework.serializers import ModelSerializer
-from main.models import Profile, BankAccount, Bank, Complaint
+from main.models import Profile, BankAccount, Bank, Complaint, ChatMessage,  GroupChat
 from rest_framework.validators import ValidationError
 from rest_framework import serializers
 from admins.models import *
@@ -100,6 +100,7 @@ class EventSerializer(ModelSerializer):
         fields = '__all__'
 
 class ComplaintSerializer(ModelSerializer):
+    
     class Meta:
         model = Complaint
         fields = "__all__"
@@ -124,3 +125,47 @@ class NewsSerializer(ModelSerializer):
     class Meta:
         model = News
         exclude = ["active", "verified"]
+
+class DepartmentSerializer(ModelSerializer):
+    class Meta:
+        model = Department
+        fields = "__all__"
+
+class GroupChatSerializer(ModelSerializer):
+    department = DepartmentSerializer()
+    class Meta:
+        model = GroupChat
+        fields = "__all__"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["department"] = data["department"]["title"]
+        members_array = []
+        for member in data["members"]:
+            user = Profile.objects.get(id = member)
+            members_array.append(user.first_name + " " + user.last_name)
+        data["members"] = members_array
+        return data
+
+class ChatMessageSerializer(ModelSerializer):
+    class Meta:
+        model = ChatMessage
+        exclude = ["seen_by", "id"]
+
+    def validate_message(self, value):
+        if value.strip() == "":
+            raise ValidationError("Message can't be empty!")
+        return value
+
+class ChatMessageSerializerGet(ModelSerializer):
+    group = GroupChatSerializer()
+    class Meta:
+        model = ChatMessage
+        exclude = ["seen_by", "id"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        
+        data["group"] = data["group"]["title"]
+
+        return data
