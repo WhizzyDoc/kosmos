@@ -1,15 +1,17 @@
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.models import User
 from rest_framework.generics import GenericAPIView, RetrieveUpdateDestroyAPIView, ListCreateAPIView, CreateAPIView, ListAPIView, RetrieveAPIView, UpdateAPIView, DestroyAPIView
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.mixins import CreateModelMixin
-from main.models import Profile, BankAccount, Bank
+from main.models import *
+from django.contrib.auth.views import PasswordResetConfirmView
 from admins.views import generate_token
 from admins.models import *
 from .serializers import *
+
 # Create your views here.
 
 class LoginView(GenericAPIView):
@@ -32,7 +34,11 @@ class LoginView(GenericAPIView):
                     token = generate_token()
                     user_profile.api_token = token
                     user_profile.save()
-
+                log = Log.objects.create(
+                    user = user_profile,
+                    action = "You logged in"
+                )
+                log.save()
                 return Response({
                     "status": "success",
                     "message": "Login successful",
@@ -49,24 +55,51 @@ class ProfileView(RetrieveUpdateDestroyAPIView):
     queryset = Profile.objects.all()
     permission_classes = [AllowAny]
     lookup_field = "api_token"
-    parser_classes = [FormParser, MultiPartParser, JSONParser]
     serializer_class = ProfileSerializer
 
-    def update(self, request, *args, **kwargs):
-        response =  super().update(request, *args, **kwargs)
+    def update(self, request, api_token, *args, **kwargs):
+        try:
+            user_profile = Profile.objects.get(api_token=api_token)
+            user = user_profile.user
+        except:
+            return Response({
+                "error": "an error occured"
+            }, status = status.HTTP_400_BAD_REQUEST)
 
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        if serializer.is_valid():
-            image = request.data.get("image", None)
-            if image:
-                instance.image = image
-            serializer.save()
+        # Update the user's password
+        previous_password = request.data["prev_password"]
+        new_password = request.data["new_password"]
+        
+        if user.check_password(previous_password):
+            user.set_password(new_password)
+            log = Log.objects.create(
+                    user = user_profile,
+                    action = "You updated your Password"
+            )
+            log.save()
+            user.save()
+        else:
+            return Response({"error": "Invalid previous password"}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response(serializer.data)
+        # Serialize the updated user profile
+        serializer = self.serializer_class(user_profile)
+        
+        return Response({
+            "message": "Password Updated!",
+            "user_profile": serializer.data
+        }, status = status.HTTP_200_OK)
 
-        else: return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user_profile = Profile.objects.get(api_token=api_token)
+            user = user_profile.user
+        except:
+            return Response({
+                "error": "an error occured"
+            }, status = status.HTTP_400_BAD_REQUEST)
 
+        serializer = self.serializer_class(user_profile)
+        return Response(serializer.data, status = status.HTTP_200_OK)
 
 # Create Bank Account 
 
@@ -79,11 +112,16 @@ class BankAccountCreateView(CreateAPIView):
 
     def create(self, request, api_token, *args, **kwargs):
         # Get the user's primary key based on the provided API token
-        user = Profile.objects.get(api_token=api_token)
-        user_pk = user.pk
+        try:
+            user = Profile.objects.get(api_token=api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Can't find user"
+            },status = status.HTTP_404_NOT_FOUND)
 
         # Get the bank's primary key based on the provided bank name
-        bank_name = request.data["bank"]
+        bank_name = request.data["bank"].lower()
         try:
             bank = Bank.objects.get(bank_name=bank_name)
             bank_pk = bank.pk
@@ -99,7 +137,11 @@ class BankAccountCreateView(CreateAPIView):
         if serializer.is_valid():
             if BankAccount.objects.filter(user = user_pk).exists():
                 return Response({"error": "You already have a bank account", "user": serializer.data}, status=status.HTTP_409_CONFLICT)
-        
+            log = Log.objects.create(
+            user = user,
+            action = "You created your bank account"
+            )
+            log.save()
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -111,8 +153,14 @@ class BankAccountRetrieveUpdateViewDeleteView(RetrieveUpdateDestroyAPIView):
 
     def get(self, request, api_token, *args, **kwargs):
         # Get the user's primary key based on the provided API token
-        user_profile = Profile.objects.get(api_token=api_token)
-        user_pk = user_profile.pk
+        try:
+            user = Profile.objects.get(api_token=api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Can't find user"
+                },status = status.HTTP_404_NOT_FOUND)
+
         # Retrieve all bank accounts for this user
         bank_account = BankAccount.objects.get(user=user_pk)
 
@@ -123,14 +171,23 @@ class BankAccountRetrieveUpdateViewDeleteView(RetrieveUpdateDestroyAPIView):
         )
 
     def update(self, request,api_token, *args, **kwargs):
-        user_profile = Profile.objects.get(api_token=api_token)
-        user_pk = user_profile.pk
+        try:
+            user = Profile.objects.get(api_token=api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Can't find user"
+                },status = status.HTTP_404_NOT_FOUND)
         bank_account = BankAccount.objects.get(user=user_pk)
         data = request.data.copy()
 
         data["user"] = user_pk
 
-        bank_name = request.data["bank"]
+        if "bank" in request.data:
+            bank_name = data["bank"].lower()
+        else:
+            bank_name = BankAccount.objects.get(user = user).bank.bank_name
+        
         try:
             bank = Bank.objects.get(bank_name=bank_name)
             bank_pk = bank.pk
@@ -139,6 +196,12 @@ class BankAccountRetrieveUpdateViewDeleteView(RetrieveUpdateDestroyAPIView):
         data["bank"] = bank_pk
         serializer = self.serializer_class(bank_account, data=data)
         if serializer.is_valid():
+
+            log = Log.objects.create(
+                    user = user,
+                    action = "You updated your Bank Details"
+            )
+            log.save()
             serializer.save()
             return Response(
                 serializer.data, status = status.HTTP_200_OK
@@ -165,11 +228,6 @@ class BankAccountRetrieveUpdateViewDeleteView(RetrieveUpdateDestroyAPIView):
                 "Error": "Sorry, an error occured!"
             }, status = status.HTTP_400_BAD_REQUEST)
 
-        
-
-        
-
-
 
 from .filters import ProfileFilter
 from django_filters.rest_framework import DjangoFilterBackend
@@ -184,7 +242,7 @@ class EmployeeListView(ListCreateAPIView):
 
 
 
-class CreateListEventView(ListCreateAPIView, UpdateAPIView, DestroyAPIView):
+class CreateListEventView(ListAPIView):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
     permission_classes = [AllowAny]
@@ -192,107 +250,295 @@ class CreateListEventView(ListCreateAPIView, UpdateAPIView, DestroyAPIView):
 
     def get(self, request,pk, *args, **kwargs):
         # api_token = pk
-        type_ = self.request.query_params.get('type')
-        print(pk)
-        user = Profile.objects.get(api_token=pk)
-        if user.is_premium_user:
-            events =  Event.objects.all()
-        if type_ == "open":
-            events =  Event.objects.filter(invitees=user, type = "open")
-        elif type_ == "invitation":
-            events = Event.objects.filter(invitees = user, type = "invitation")
-        else:
-            events = Event.objects.filter(invitees = user)
-
-        serializer = EventSerializer(events, many=True)
-
-        return Response(serializer.data)
-
-    def create(self, request, pk, *args, **kwargs):
-        user_profile = Profile.objects.get(api_token = pk)
-        user_pk = user_profile.pk
-        if user_profile.is_premium_user:
-            data = request.data.copy()
-            data["organizer"] = user_pk
-            data["attending"] = []
-            serializer = self.serializer_class(data = data)
-            # print(serializer.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        else:
+        try:
+            user = Profile.objects.get(api_token=pk)
+        except:
             return Response({
-                "Error": "You cant perform this action"
-            }, status=status.HTTP_401_UNAUTHORIZED)
+                "Error": "Cant complete your request"
+            }, status = status.HTTP_400_BAD_REQUEST)
 
-class RetrieveUpdateDestroyEventView(RetrieveUpdateDestroyAPIView):
+        return super(CreateListEventView, self).list(request, *args, **kwargs)
+
+class RetrieveUpdateDestroyEventView(RetrieveAPIView):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
     permission_classes = [AllowAny]
     lookup_field = "id"
 
-    def update(self, request, api_token, id, *args, **kwargs):
+class ComplaintView(ListCreateAPIView):
+    queryset = Complaint.objects.all()
+    lookup_field = "api_token"
+    serializer_class = ComplaintSerializer
+    permission_classes = [AllowAny]
 
-        event = Event.objects.get(id = id)
-        user_profile = Profile.objects.get(api_token = api_token)
-        user_pk = user_profile.pk
-
-        if user_profile.is_premium_user:
-            data = request.data.copy()
-            data["organizer"] = user_pk
-            data["attending"] = event.attending
-            serializer = self.serializer_class(data = data)
-
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data, status = status.HTTP_200_OK)
-            else:
-                return Response(serializer.error, status = status.HTTP_400_BAD_REQUEST)
-        else:
+    def create(self, request, api_token, *args, **kwargs):
+        try:
+            profile = Profile.objects.get(api_token = api_token)
+            user_pk = profile.pk
+        except: 
             return Response({
-                "Error": "Can't perform this action"
-            }, status=status.HTTP_401_UNAUTHORIZED)
+                "error": "Can't complete that action"
+            })
+
+
+        data = request.data.copy()
+        
+        data["employee"] = user_pk
+
+        serializer = self.serializer_class(data = data)
+
+        if serializer.is_valid():
+            log = Log.objects.create(
+                    user = profile,
+                    action = "You lodged a complaint"
+            )
+            log.save()
+            serializer.save()
+            
+            return Response(serializer.data, status = status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            profile = Profile.objects.get(api_token = api_token)
+            user_pk = profile.pk
+        except:
+            return Response({
+                "Error": "Can't complete this action"
+            }, status = status.HTTP_400_BAD_REQUEST)
+        filter_by = self.request.query_params.get("by")
+        if filter_by == "user":
+            serializer = self.serializer_class(Complaint.objects.filter(employee = user_pk), many = True)
+        else:
+            serializer = self.serializer_class(Complaint.objects.all(), many = True)
+
+
+        return Response(serializer.data)
+
+class RetrieveUpdateDeleteComplaintView(RetrieveUpdateDestroyAPIView):
+    queryset = Complaint.objects.all()
+    serializer_class = ComplaintSerializer
+    lookup_url_kwarg = 'id'
+    permission_classes = [AllowAny]
+
+    def get(self, request, id, *args, **kwargs):
+        complaint = self.get_object()
+        serializer = self.serializer_class(complaint)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def update(self, request, api_token, id, *args, **kwargs):
+        try:
+            user_profile = Profile.objects.get(api_token=api_token)
+        except Profile.DoesNotExist:
+            return Response({"Error": "Invalid api_token"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        complaint = Complaint.objects.get(id=id)
+
+        # Check if the user is the owner of the complaint or an admin
+        if user_profile == complaint.employee:
+
+            if 'title' in request.data or 'complaint' in request.data or 'proposed_solution' in request.data:
+                data = request.data.copy()
+                serializer = self.serializer_class(instance=complaint, data=data, partial=True)
+
+                if serializer.is_valid():
+                    log = Log.objects.create(
+                            user = user_profile,
+                            action = "You updated your complaint"
+                    )
+                    log.save()
+                    serializer.save()
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+                else:
+                    return Response({"Error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Allowing admin to edit solution and addressed fields
+            elif 'solution' in request.data or 'addressed' in request.data:
+                    return Response({"Error": "Cant add Solution to your own complaints"}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            return Response({"Error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+
 
 
 
     def destroy(self, request, api_token, id, *args, **kwargs):
-        user_profile = Profile.objects.get(api_token = api_token)
-        user_pk = user_profile.pk
+        try:
+            user_profile = Profile.objects.get(api_token=api_token)
+        except Profile.DoesNotExist:
+            return Response({"Error": "Invalid api_token"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        if user_profile.is_premium_user:
-            event = get_object_or_404(Event, id=id)
-            event.delete()
-            return Response({
-                "Deleted": "You've deleted this event"
-            }, status = status.HTTP_200_OK)
+        complaint = Complaint.objects.get(id=id)
+
+        if user_profile.pk == complaint.employee:
+            log = Log.objects.create(
+                    user = user_profile,
+                    action = "You deleted a complaint"
+            )
+            log.save()
+            complaint.delete()
+            return Response({"Message": "Complaint deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
         else:
-            return Response({
-                "Error": "You can't perform that action"
-            }, status = status.HTTP_401_UNAUTHORIZED)
+            return Response({"Error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
 
-class AttendingEventView(UpdateAPIView):
-    queryset = Event.objects.all()
-    serializer_class = EventSerializer
+
+class NewsView(ListAPIView):
+    queryset = News.objects.filter(active = True)
+    serializer_class = NewsSerializer
+    permission_classes = [AllowAny]
+
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user = Profile.objects.get(api_token = api_token)
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.serializer_class(News.objects.filter(active = True), many = True )
+
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
+class RetrieveNewsView(RetrieveAPIView):
+    queryset = News.objects.filter(active = True)
+    serializer_class = NewsSerializer
+    permission_classes = [AllowAny]
+    lookup_field = "id"
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user = Profile.objects.get(api_token = api_token)
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.serializer_class(self.get_object())
+
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
+class GroupChats(RetrieveAPIView):
+    queryset = GroupChat.objects.all()
+    serializer_class = GroupChatSerializer
+    permission_classes = [AllowAny]
+
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user = Profile.objects.get(api_token = api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "error": "An error occured!"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        groups = user.department_group.all()
+
+        serializer = self.serializer_class(groups, many = True)
+
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
+class GroupChatDetailsView(RetrieveAPIView):
+    queryset = GroupChat.objects.all()
+    serializer_class = GroupChatSerializer
     permission_classes = [AllowAny]
     lookup_field = "id"
 
-    def update(self, request,api_token,id, *args, **kwargs):
+    def get(self, request, api_token,id, *args, **kwargs):
         try:
-            event = Event.objects.get(id = id)
-            user_profile = Profile.objects.get(api_token = api_token)
-            user_pk = user_profile.pk
-
-            if event.invitees.filter(pk=user_pk).exists():
-                event.attending.add(user_profile)
-                event.save()
-                return Response({
-                    "Saved": "You successfully accepted the invite"
-                }, status=status.HTTP_200_OK)
-
+            user = Profile.objects.get(api_token = api_token)
         except:
             return Response({
-                "Error": "An error occured"
-            }, status = status.HTTP_400_BAD_REQUEST)
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+        if user.department_group.filter(id = id).exists():
+            serializer = self.serializer_class(self.get_object())
+        else:
+            return Response({
+                "Error": "Sorry, you are not in this group"
+            }, status = status.HTTP_401_UNAUTHORIZED)
+
+        return Response(serializer.data, status = status.HTTP_200_OK)
+
+class ChatMessageCreateView(ListCreateAPIView):
+    queryset = ChatMessage.objects.all()
+    serializer_class = ChatMessageSerializer
+    permission_classes = [AllowAny]
+
+    def get(self, request, api_token, pk, *args, **kwargs):
+        id = pk
+        try:
+            user = Profile.objects.get(api_token = api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+        if user.department_group.filter(id = id).exists():
+            serializer = ChatMessageSerializerGet(ChatMessage.objects.filter(group = id), many = True)
+            return Response(serializer.data, status = status.HTTP_200_OK)
+        else:
+            return Response({
+                "Error": "Sorry, you are not in this group"
+            })
+
+
+    def create(self, request, api_token, pk,  *args, **kwargs):
+        id = pk
+        try:
+            user = Profile.objects.get(api_token = api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+            }, status=status.HTTP_403_FORBIDDEN)
+        if user.department_group.filter(id = id).exists():
+            # try:
+            group = GroupChat.objects.get(id = id)
+
+            data = request.data.copy()
+            data["group"] = group.pk
+            data["sender"] = user_pk
+            
+            serializer = self.serializer_class(data = data)
+            if serializer.is_valid():
+                serializer.save()
+                
+                return Response({
+                    "message": serializer.data["message"],
+                    "date": serializer.data["date"],
+                    "group": group.title,
+                    "sender": user.first_name + " " + user.last_name
+                }, status = status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({
+                "Error": "Sorry, you are not in this group"
+            }, status = status.HTTP_401_UNAUTHORIZED)
+
+class QueryView(RetrieveAPIView):
+    queryset = Query.objects.all()
+    permission_classes = [AllowAny]
+    serializer_class = QuerySerializer
+    def get(self, request, api_token, format=None):
+        
+        try:
+            user = Profile.objects.get(api_token = api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+                }, status=status.HTTP_403_FORBIDDEN)
+        query_id = request.query_params.get("id")
+        if query_id:
+            try:
+                query = Query.objects.get(id = query_id, addressed_to = user_pk)
+                serializer = self.serializer_class(query)
+                return Response(serializer.data, status = status.HTTP_200_OK)
+            except:
+                    return Response({
+                        "details": "query not found"
+                    }, status = status.HTTP_404_NOT_FOUND)
+        query = Query.objects.filter(addressed_to = user_pk)
+        serializer = self.serializer_class(query, many = True)
+        return Response(serializer.data, status = status.HTTP_200_OK)
+    

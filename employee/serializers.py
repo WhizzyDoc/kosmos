@@ -1,47 +1,39 @@
 import re
 from rest_framework.serializers import ModelSerializer
-from main.models import Profile, BankAccount, Bank
+from main.models import *
 from rest_framework.validators import ValidationError
 from rest_framework import serializers
-from admins.models import Event
+from admins.models import *
+
+
+class DepartmentSerializer(ModelSerializer):
+    class Meta:
+        model = Department
+        fields = "__all__"
+
+class PositionSerializer(ModelSerializer):
+    class Meta:
+        model = Position
+        fields = "__all__"
+
+
 class ProfileSerializer(ModelSerializer):
+    department = DepartmentSerializer()
+    position = PositionSerializer()
     class Meta:
         model = Profile
-        # exclude = ["user","position", "department", "id_no", "salary", "is_premium_user"]
-        fields = "__all__"
-        read_only_fields = ("user","position", "department", "id_no", "salary", "is_premium_user")
+        exclude = ["user", "api_token"]
+        # fields = "__all__"
+        read_only_fields = Profile._meta.get_fields()
 
-    def validate_phone_number(self, value):
-        if not re.match(r'^\+?[0-9]+$', value):
-            raise ValidationError("Invalid phone number format.")
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["department"] = data["department"]["title"]
+        data["position"] = data["position"]["title"]
 
-        return value
+        return data
 
-    def validate_title(self, value):
-        if value  not in ["Dr", "Engr", "Miss", "Mr", "Mrs", "Prof"]:
-            raise ValidationError("Invalid title")
 
-        return value
-
-    def validate_nationality(self, value):
-        if not re.match(r'^[A-Za-z]+$', value):
-            raise ValidationError("Invalid nationality")
-        return value
-
-    def validate_first_name(self, value):
-        if not re.match(r'^[A-Za-z]+$', value):
-            raise ValidationError("Name can only be texts")
-        return value
-
-    def validate_middle_name(self, value):
-        if not re.match(r'^[A-Za-z]+$', value):
-            raise ValidationError("Name can only be texts")
-        return value
-
-    def validate_last_name(self, value):
-        if not re.match(r'^[A-Za-z]+$', value):
-            raise ValidationError("Name can only be texts")
-        return value
 
 class BankAccountSerializer(ModelSerializer):
     class Meta:
@@ -53,8 +45,12 @@ class BankAccountSerializer(ModelSerializer):
             raise ValidationError("Account number can only contain numbers!")
         return value
 
+
     def validate_account_name(self, value):
-        if not re.match(r'^[A-Za-z]+$', value):
+        def contains_number(s):
+            return any(char.isdigit() for char in s)
+
+        if contains_number(value):
             raise ValidationError("Name can only be texts")
         return value
 
@@ -67,8 +63,7 @@ class BankAccountUpdateSerializer(ModelSerializer):
     class Meta:
         model = BankAccount
         exclude = ["user"]
-        print(0)
-    # api_key = serializers.CharField(write_only=True, required=True)
+
 
     def validate_api_key(self, value):
         # Retrieve the associated Profile based on the provided api_key
@@ -96,12 +91,82 @@ class EventSerializer(ModelSerializer):
         model = Event
         fields = '__all__'
 
+class ComplaintSerializer(ModelSerializer):
+    
+    class Meta:
+        model = Complaint
+        fields = "__all__"
+
     def validate_title(self, value):
-        request_method = self.context.get("request_method")
-        if request_method == "POST":
-            if Event.objects.filter(title = value).exists():
-                raise ValidationError("An event with this title exists already.")
+        if value.strip() == "":
+            raise ValidationError("Title cant be blank!")
         return value
 
-    # def validate_organizer(self, value):
-    #     request_method = self.context.get("request_method")
+    def validate_complaint(self, value):
+        if value.strip() == "":
+            raise ValidationError("Complaint can't be blank!")
+
+        return value
+
+    def validate_proposed_solution(self, value):
+        if value.strip() == "":
+            raise ValidationError("You must enter a proposed solution!")
+        return value
+
+class NewsSerializer(ModelSerializer):
+    class Meta:
+        model = News
+        exclude = ["active", "verified"]
+
+
+class GroupChatSerializer(ModelSerializer):
+    department = DepartmentSerializer()
+    class Meta:
+        model = GroupChat
+        fields = "__all__"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["department"] = data["department"]["title"]
+        members_array = []
+        for member in data["members"]:
+            user = Profile.objects.get(id = member)
+            members_array.append(user.first_name + " " + user.last_name)
+        data["members"] = members_array
+        return data
+
+class ChatMessageSerializer(ModelSerializer):
+    class Meta:
+        model = ChatMessage
+        exclude = ["seen_by", "id"]
+
+    def validate_message(self, value):
+        if value.strip() == "":
+            raise ValidationError("Message can't be empty!")
+        return value
+
+class ChatMessageSerializerGet(ModelSerializer):
+    group = GroupChatSerializer()
+    class Meta:
+        model = ChatMessage
+        exclude = ["seen_by", "id"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        
+        data["group"] = data["group"]["title"]
+
+        return data
+
+class QuerySerializer(ModelSerializer):
+    addressed_to = ProfileSerializer()
+    class Meta:
+        fields = "__all__"
+        model = Query
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        data["addressed_to"] = data["addressed_to"]["first_name"] + " " + data["addressed_to"]["last_name"]
+
+        return data

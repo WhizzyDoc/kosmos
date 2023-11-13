@@ -14,5 +14,12 @@ urlpatterns = [
     path("employees", views.EmployeeListView.as_view(), name = "employees"),
     path("events/<str:pk>", views.CreateListEventView.as_view(), name = "events"),
     path("event/<str:api_token>/<str:id>", views.RetrieveUpdateDestroyEventView.as_view(), name="event"),
-    path("event/accept/<str:api_token>/<str:id>", views.AttendingEventView.as_view(), name="accept-invitation")
+    path("complaint/<str:api_token>", views.ComplaintView.as_view(), name = "complaint"),
+    path("complaint/action/<str:api_token>/<str:id>", views.RetrieveUpdateDeleteComplaintView.as_view(), name = "get-complaint"),
+    path("news/<str:api_token>", views.NewsView.as_view(), name = "news"),
+    path("news/<str:api_token>/<str:id>", views.RetrieveNewsView.as_view(), name = "read-news"),
+    path("groups/<str:api_token>", views.GroupChats.as_view(), name = "groups"),
+    path("group/<str:api_token>/<str:id>", views.GroupChatDetailsView.as_view(), name = "group-chat"),
+    path("chat/<api_token>/<str:pk>", views.ChatMessageCreateView.as_view(), name = "chat"),
+    path("query/<str:api_token>", views.QueryView.as_view(), name = "query")
 ]
