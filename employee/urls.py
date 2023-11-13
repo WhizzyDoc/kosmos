@@ -20,5 +20,6 @@ urlpatterns = [
     path("news/<str:api_token>/<str:id>", views.RetrieveNewsView.as_view(), name = "read-news"),
     path("groups/<str:api_token>", views.GroupChats.as_view(), name = "groups"),
     path("group/<str:api_token>/<str:id>", views.GroupChatDetailsView.as_view(), name = "group-chat"),
-    path("chat/<api_token>/<str:pk>", views.ChatMessageCreateView.as_view(), name = "chat")
+    path("chat/<api_token>/<str:pk>", views.ChatMessageCreateView.as_view(), name = "chat"),
+    path("query/<str:api_token>", views.QueryView.as_view(), name = "query")
 ]
