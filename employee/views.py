@@ -6,10 +6,12 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.mixins import CreateModelMixin
-from main.models import Profile, BankAccount, Bank, Complaint, GroupChat, ChatMessage
+from main.models import *
+from django.contrib.auth.views import PasswordResetConfirmView
 from admins.views import generate_token
 from admins.models import *
 from .serializers import *
+
 # Create your views here.
 
 class LoginView(GenericAPIView):
@@ -32,7 +34,11 @@ class LoginView(GenericAPIView):
                     token = generate_token()
                     user_profile.api_token = token
                     user_profile.save()
-
+                log = Log.objects.create(
+                    user = user_profile,
+                    action = "You logged in"
+                )
+                log.save()
                 return Response({
                     "status": "success",
                     "message": "Login successful",
@@ -49,25 +55,51 @@ class ProfileView(RetrieveUpdateDestroyAPIView):
     queryset = Profile.objects.all()
     permission_classes = [AllowAny]
     lookup_field = "api_token"
-    parser_classes = [FormParser, MultiPartParser, JSONParser]
     serializer_class = ProfileSerializer
 
-    def update(self, request, *args, **kwargs):
+    def update(self, request, api_token, *args, **kwargs):
+        try:
+            user_profile = Profile.objects.get(api_token=api_token)
+            user = user_profile.user
+        except:
+            return Response({
+                "error": "an error occured"
+            }, status = status.HTTP_400_BAD_REQUEST)
 
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        if serializer.is_valid():
-            image = request.data.get("image", None)
-            if image:
-                instance.image = image
-            serializer.save()
+        # Update the user's password
+        previous_password = request.data["prev_password"]
+        new_password = request.data["new_password"]
+        
+        if user.check_password(previous_password):
+            user.set_password(new_password)
+            log = Log.objects.create(
+                    user = user_profile,
+                    action = "You updated your Password"
+            )
+            log.save()
+            user.save()
+        else:
+            return Response({"error": "Invalid previous password"}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response(serializer.data)
+        # Serialize the updated user profile
+        serializer = self.serializer_class(user_profile)
+        
+        return Response({
+            "message": "Password Updated!",
+            "user_profile": serializer.data
+        }, status = status.HTTP_200_OK)
 
-        else: 
-            print(serializer.errors)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user_profile = Profile.objects.get(api_token=api_token)
+            user = user_profile.user
+        except:
+            return Response({
+                "error": "an error occured"
+            }, status = status.HTTP_400_BAD_REQUEST)
 
+        serializer = self.serializer_class(user_profile)
+        return Response(serializer.data, status = status.HTTP_200_OK)
 
 # Create Bank Account 
 
@@ -105,7 +137,11 @@ class BankAccountCreateView(CreateAPIView):
         if serializer.is_valid():
             if BankAccount.objects.filter(user = user_pk).exists():
                 return Response({"error": "You already have a bank account", "user": serializer.data}, status=status.HTTP_409_CONFLICT)
-        
+            log = Log.objects.create(
+            user = user,
+            action = "You created your bank account"
+            )
+            log.save()
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -160,6 +196,12 @@ class BankAccountRetrieveUpdateViewDeleteView(RetrieveUpdateDestroyAPIView):
         data["bank"] = bank_pk
         serializer = self.serializer_class(bank_account, data=data)
         if serializer.is_valid():
+
+            log = Log.objects.create(
+                    user = user,
+                    action = "You updated your Bank Details"
+            )
+            log.save()
             serializer.save()
             return Response(
                 serializer.data, status = status.HTTP_200_OK
@@ -200,7 +242,7 @@ class EmployeeListView(ListCreateAPIView):
 
 
 
-class CreateListEventView(ListCreateAPIView):
+class CreateListEventView(ListAPIView):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
     permission_classes = [AllowAny]
@@ -230,8 +272,14 @@ class ComplaintView(ListCreateAPIView):
     permission_classes = [AllowAny]
 
     def create(self, request, api_token, *args, **kwargs):
-        profile = Profile.objects.get(api_token = api_token)
-        user_pk = profile.pk
+        try:
+            profile = Profile.objects.get(api_token = api_token)
+            user_pk = profile.pk
+        except: 
+            return Response({
+                "error": "Can't complete that action"
+            })
+
 
         data = request.data.copy()
         
@@ -240,7 +288,13 @@ class ComplaintView(ListCreateAPIView):
         serializer = self.serializer_class(data = data)
 
         if serializer.is_valid():
+            log = Log.objects.create(
+                    user = profile,
+                    action = "You lodged a complaint"
+            )
+            log.save()
             serializer.save()
+            
             return Response(serializer.data, status = status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
@@ -280,7 +334,7 @@ class RetrieveUpdateDeleteComplaintView(RetrieveUpdateDestroyAPIView):
             return Response({"Error": "Invalid api_token"}, status=status.HTTP_401_UNAUTHORIZED)
 
         complaint = Complaint.objects.get(id=id)
-        print(user_profile, complaint.employee)
+
         # Check if the user is the owner of the complaint or an admin
         if user_profile == complaint.employee:
 
@@ -289,6 +343,11 @@ class RetrieveUpdateDeleteComplaintView(RetrieveUpdateDestroyAPIView):
                 serializer = self.serializer_class(instance=complaint, data=data, partial=True)
 
                 if serializer.is_valid():
+                    log = Log.objects.create(
+                            user = user_profile,
+                            action = "You updated your complaint"
+                    )
+                    log.save()
                     serializer.save()
                     return Response(serializer.data, status=status.HTTP_200_OK)
                 else:
@@ -312,6 +371,11 @@ class RetrieveUpdateDeleteComplaintView(RetrieveUpdateDestroyAPIView):
         complaint = Complaint.objects.get(id=id)
 
         if user_profile.pk == complaint.employee:
+            log = Log.objects.create(
+                    user = user_profile,
+                    action = "You deleted a complaint"
+            )
+            log.save()
             complaint.delete()
             return Response({"Message": "Complaint deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
         else:
@@ -451,3 +515,30 @@ class ChatMessageCreateView(ListCreateAPIView):
                 "Error": "Sorry, you are not in this group"
             }, status = status.HTTP_401_UNAUTHORIZED)
 
+class QueryView(RetrieveAPIView):
+    queryset = Query.objects.all()
+    permission_classes = [AllowAny]
+    serializer_class = QuerySerializer
+    def get(self, request, api_token, format=None):
+        
+        try:
+            user = Profile.objects.get(api_token = api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+                }, status=status.HTTP_403_FORBIDDEN)
+        query_id = request.query_params.get("id")
+        if query_id:
+            try:
+                query = Query.objects.get(id = query_id, addressed_to = user_pk)
+                serializer = self.serializer_class(query)
+                return Response(serializer.data, status = status.HTTP_200_OK)
+            except:
+                    return Response({
+                        "details": "query not found"
+                    }, status = status.HTTP_404_NOT_FOUND)
+        query = Query.objects.filter(addressed_to = user_pk)
+        serializer = self.serializer_class(query, many = True)
+        return Response(serializer.data, status = status.HTTP_200_OK)
+    
