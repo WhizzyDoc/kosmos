@@ -27,6 +27,7 @@ from django.utils import timezone
 from django.http import FileResponse
 from django.utils.text import slugify
 import random
+import decimal
 import math
 import string
 
@@ -409,6 +410,10 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         salary = request.POST.get('salary')
         position = request.POST.get('position')
         department = request.POST.get('department')
+        dob = request.POST.get('date_of_birth')
+        a_date = request.POST.get('appointment_date')
+        address = request.POST.get('address')
+        image = request.FILES.get('image')
         key = request.POST.get('api_token')
         try:
             profile = Profile.objects.get(api_token=key)
@@ -443,7 +448,8 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                                 # create a new profile
                                 new_profile = Profile(user=new_user, email=email, id_no=id_no, first_name=f_name, last_name=l_name,
                                                     api_token=api_key, middle_name=m_name, nationality=nationality, phone_number=phone_number,
-                                                    salary=salary, title=title, city=city, state=state)
+                                                    salary=decimal.Decimal(salary), title=title, city=city, state=state, date_of_birth=dob, appointment_date=a_date,
+                                                    address=address, image=image)
                                 new_profile.save()
                                 Log.objects.create(user=profile, action=f"created a new employee ID number {id_no}")
                                 if position is not None and str(position) != '':
@@ -505,15 +511,9 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 "message": "Invalid API token"
             })
 
-    # to register the created account by filling profile details
-    @action(detail=False,
-            methods=['post'])
-    def register(self, request, *args, **kwargs):
+  
         email = request.POST.get('email')
-        dob = request.POST.get('date_of_birth')
-        a_date = request.POST.get('appointment_date')
-        address = request.POST.get('address')
-        image = request.FILES.get('image')
+        
         #id_no = ''
         # check if post email data is valid
         try:
@@ -545,8 +545,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': f'Error while registering account'
             })
-                
-                
+     
     @action(detail=False,
             methods=['post'])
     def authentication(self, request, *args, **kwargs):
@@ -629,11 +628,35 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
             methods=['post'])
     def edit_admin_profile(self, request, *args, **kwargs):
         key = request.POST.get('api_token')
+        email = request.POST.get('email')
+        f_name = request.POST.get('first_name')
+        l_name = request.POST.get('last_name')
+        m_name = request.POST.get('middle_name')
+        phone_number = request.POST.get('phone_number')
+        image = request.FILES.get('image')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
             if admin_group in user.groups.all():
                 # edited attributes
+                if email:
+                    profile.email = email
+                    profile.save()
+                if f_name:
+                    profile.first_name = f_name
+                    profile.save()
+                if l_name:
+                    profile.last_name = l_name
+                    profile.save()
+                if m_name:
+                    profile.middle_name = m_name
+                    profile.save()
+                if phone_number:
+                    profile.phone_number = phone_number
+                    profile.save()
+                if image:
+                    profile.image = image
+                    profile.save()
                 Log.objects.create(user=profile, action=f"edited admin profile")
                 return Response({
                     'status': "success",
@@ -650,7 +673,6 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
-        
 
 class PositionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Position.objects.all()
@@ -705,6 +727,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'Error getting position list'
             })
+    
     @action(detail=False,
             methods=['get'])
     def get_position(self, request, *args, **kwargs):
@@ -733,6 +756,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'success',
                 'message': 'Invalid position ID'
             })
+    
     @action(detail=False,
             methods=['post'])
     def create_position(self, request, *args, **kwargs):
@@ -768,6 +792,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
+    
     @action(detail=False,
             methods=['post'])
     def edit_position(self, request, *args, **kwargs):
@@ -1483,6 +1508,7 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                 "status": "error",
                 "message": "error while getting employee list"
             })
+    
     @action(detail=False,
             methods=['get'])
     def get_employee(self, request, *args, **kwargs):
@@ -1511,6 +1537,7 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'invalid ID number'
             })
+    
     @action(detail=False,
             methods=['get'])
     def get_employee_report(self, request, *args, **kwargs):
@@ -1546,6 +1573,113 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'invalid ID number'
             })
+    
+    @action(detail=False,
+            methods=['post'])
+    def edit_employee(self, request, *args, **kwargs):
+        email = request.POST.get('email')
+        title = request.POST.get('title')
+        f_name = request.POST.get('first_name')
+        l_name = request.POST.get('last_name')
+        m_name = request.POST.get('middle_name')
+        city = request.POST.get('city')
+        state = request.POST.get('state')
+        nationality = request.POST.get('nationality')
+        phone_number = request.POST.get('phone_number')
+        salary = request.POST.get('salary')
+        pos_id = request.POST.get('position_id')
+        dept_id = request.POST.get('department_id')
+        dob = request.POST.get('date_of_birth')
+        a_date = request.POST.get('appointment_date')
+        address = request.POST.get('address')
+        image = request.FILES.get('image')
+        key = request.POST.get('api_token')
+        id_no = request.POST.get('employee_id')
+        try:
+            profile = Profile.objects.get(api_token=key)
+            user = profile.user
+            if admin_group in user.groups.all():
+                try:
+                    employee = Profile.objects.get(id_no=id_no)
+                    if employee is not None:
+                        # edited attributes
+                        if email:
+                            employee.email = email
+                            employee.save()
+                        if f_name:
+                            employee.first_name = f_name
+                            employee.save()
+                        if title:
+                            employee.title = title
+                            employee.save()
+                        if l_name:
+                            employee.last_name = l_name
+                            employee.save()
+                        if m_name:
+                            employee.middle_name = m_name
+                            employee.save()
+                        if phone_number:
+                            employee.phone_number = phone_number
+                            employee.save()
+                        if image:
+                            employee.image = image
+                            employee.save()
+                        if address:
+                            employee.address = address
+                            employee.save()
+                        if city:
+                            employee.city = city
+                            employee.save()
+                        if state:
+                            employee.state = state
+                            employee.save()
+                        if nationality:
+                            employee.nationality = nationality
+                            employee.save()
+                        if dob:
+                            employee.date_of_birth = dob
+                            employee.save()
+                        if a_date:
+                            employee.appointment_date = a_date
+                            employee.save()
+                        if salary:
+                            employee.salary = decimal.Decimal(salary)
+                            employee.save()
+                        if pos_id:
+                            position = Position.objects.get(id=pos_id)
+                            employee.position = position
+                            employee.save()
+                        if dept_id:
+                            department = Department.objects.get(id=dept_id)
+                            employee.department = department
+                            employee.save()
+                        Log.objects.create(user=profile, action=f"edited employee {id_no} profile")
+                        return Response({
+                            'status': "success",
+                            "message": "employee profile edited successfully",
+                            "data": ProfileSerializer(employee).data,
+                        })
+                    else:
+                        return Response({
+                            'status': "error",
+                            "message": f"employee with ID number {id_no} does not exist"
+                        })
+                except:
+                    return Response({
+                        'status': "error",
+                        "message": "Invalid employee ID number"
+                    })
+            else:
+                return Response({
+                    'status': "error",
+                    "message": "User is not authorized"
+                })
+        except:
+            return Response({
+                'status': "error",
+                "message": "Invalid API token"
+            })
+
     @action(detail=False,
             methods=['post'])
     def deactivate_employee(self, request, *args, **kwargs):
