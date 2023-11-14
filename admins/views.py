@@ -828,6 +828,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
+    
     @action(detail=False,
             methods=['post'])
     def delete_position(self, request, *args, **kwargs):
@@ -914,6 +915,7 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'Error getting department list'
             })
+    
     @action(detail=False,
             methods=['get'])
     def get_department(self, request, *args, **kwargs):
@@ -942,6 +944,7 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'success',
                 'message': 'Invalid department ID'
             })
+    
     @action(detail=False,
             methods=['post'])
     def create_department(self, request, *args, **kwargs):
@@ -980,6 +983,7 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
+    
     @action(detail=False,
             methods=['post'])
     def edit_department(self, request, *args, **kwargs):
@@ -1018,6 +1022,7 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
+    
     @action(detail=False,
             methods=['post'])
     def delete_department(self, request, *args, **kwargs):
@@ -1546,14 +1551,19 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
             try:
                 employee = Profile.objects.get(id_no=query)
                 if employee is not None:
-                    tasks = Task.objects.filter(assigned_to=employee)
+                    tasks = employee.tasks_assigned.all()
                     tasks_count = tasks.count()
-                    completed_tasks = Task.objects.filter(assigned_to=employee, completed=True)
-                    incomplete_tasks = Task.objects.filter(assigned_to=employee, completed=False)
+                    completed_tasks = 0
+                    incomplete_tasks = 0
+                    for t in tasks:
+                        if t.completed == True:
+                            completed_tasks += 1
+                        else:
+                            incomplete_tasks += 1
                     return Response({
                         'status': 'success',
                         'message': 'employee tasks report retrieved',
-                        'data': [TaskSerializer(task).data for task in tasks],
+                        'data': [TaskSerializer(tas).data for tas in tasks],
                         'total_tasks': tasks_count,
                         'completed_tasks': completed_tasks,
                         'incomplete_tasks': incomplete_tasks
@@ -1684,7 +1694,7 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
             methods=['post'])
     def deactivate_employee(self, request, *args, **kwargs):
         key = request.POST.get('api_token')
-        id = request.POST.get('id_number')
+        id = request.POST.get('employee_id')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -1713,11 +1723,12 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
+    
     @action(detail=False,
             methods=['post'])
     def delete_employee(self, request, *args, **kwargs):
         key = request.POST.get('api_token')
-        id = request.POST.get('id_number')
+        id = request.POST.get('employee_id')
         try:
             profile = Profile.objects.get(api_token=key)
             user = profile.user
@@ -2506,6 +2517,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'Error getting task list'
             })
+    
     @action(detail=False,
             methods=['get'])
     def get_task(self, request, *args, **kwargs):
@@ -2534,6 +2546,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'success',
                 'message': 'Invalid task ID'
             })
+    
     @action(detail=False,
             methods=['post'])
     def create_task(self, request, *args, **kwargs):
@@ -2594,6 +2607,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
+    
     @action(detail=False,
             methods=['post'])
     def edit_task(self, request, *args, **kwargs):
@@ -2612,9 +2626,16 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
             if admin_group in user.groups.all():
                 try:
                     task = Task.objects.get(id=id)
-                    task.title = title
-                    task.description = description
-                    task.deadline = deadline
+                    if title:
+                        task.title = title
+                        task.save()
+                    if description:
+                        task.description = description
+                        task.save()
+                    if deadline:
+                        task.deadline = deadline
+                        task.save()
+                    
                     task.file = file
                     task.completed = completed
                     task.save()
@@ -2648,6 +2669,7 @@ class TaskViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
+    
     @action(detail=False,
             methods=['post'])
     def delete_task(self, request, *args, **kwargs):

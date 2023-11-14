@@ -85,12 +85,11 @@ class RewardSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'description']
 
 class TaskSerializer(serializers.ModelSerializer):
-    created_by = EmployeeSerializer(many=False, read_only=True)
     reward = RewardSerializer(many=False, read_only=True)
     assigned_to = EmployeeSerializer(many=False, read_only=True)
     class Meta:
         model = Task
-        fields = ['id', 'title', 'description', 'created_by', 'file', 'reward', 'assigned_to',
+        fields = ['id', 'title', 'description', 'file', 'reward', 'assigned_to',
                   'completed', 'deadline']
 
 class LogSerializer(serializers.ModelSerializer):
