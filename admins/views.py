@@ -2931,6 +2931,7 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': 'Error getting query list'
             })
+    
     @action(detail=False,
             methods=['get'])
     def get_query(self, request, *args, **kwargs):
@@ -2959,6 +2960,7 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'success',
                 'message': 'Invalid query ID'
             })
+    
     @action(detail=False,
             methods=['post'])
     def create_query(self, request, *args, **kwargs):
@@ -3002,6 +3004,7 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
+    
     @action(detail=False,
             methods=['post'])
     def edit_query(self, request, *args, **kwargs):
@@ -3016,12 +3019,20 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
             user = profile.user
             if admin_group in user.groups.all():
                 try:
-                    employee = Profile.objects.get(id_no=id_no)
                     query = Complaint.objects.get(id=id)
-                    query.title = title
-                    query.query = q
-                    query.addressed = addressed
-                    query.save()
+                    if title:
+                        query.title = title
+                        query.save()
+                    if q:
+                        query.query = q
+                        query.save()
+                    if addressed:
+                        query.addressed = addressed
+                        query.save()
+                    if id_no:
+                        employee = Profile.objects.get(id_no=id_no)
+                        query.addressed_to = employee
+                        query.save()
                     Log.objects.create(user=profile, action=f"edited query {query.title}")
                     return Response({
                         'status': "success",
@@ -3043,6 +3054,7 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': "error",
                 "message": "Invalid API token"
             })
+    
     @action(detail=False,
             methods=['post'])
     def delete_query(self, request, *args, **kwargs):
