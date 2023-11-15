@@ -13,7 +13,7 @@ from admins.views import generate_token
 from admins.models import *
 from .serializers import *
 import uuid
-from main.utils import sendmail
+from main.utils import *
 
 # Create your views here.
 
@@ -621,8 +621,8 @@ class ForgotPassword_GetNewPasswordView(APIView):
         new_password = str(uuid.uuid4()).replace("-", "")[:9]
 
         # Save and Send user the new Password
-        sendmail(user_email, new_password)
-        print(new_password)
+        send_password_email(user_email, user_profile.first_name, new_password)
+        #print(new_password)
 
         save_password = ForgottenPassword.objects.create(
             user = user_profile,

@@ -5,6 +5,7 @@ from employee.models import *
 from .serializers import *
 from .bank import bank_list
 from .utils import create_action
+from main.utils import *
 from django.shortcuts import get_object_or_404
 from django.core.mail import send_mail
 from django.utils.crypto import get_random_string
@@ -330,11 +331,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 user.set_password(token)
                 user.save()
                 # send email
-                subject = 'Password Reset Request'
-                message = f'Your new temporary password is: {token}'
-                from_email = 'your_email@example.com'
-                recipient_list = [email]
-                send_mail(subject, message, from_email, recipient_list, fail_silently=False)
+                send_password_email(email, user.first_name, token)
                 return Response({
                     'status': 'success',
                     'message': f'Password reset instructions has been sent to {email}'
@@ -349,6 +346,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 'status': 'error',
                 'message': f"Unregistered email",
             }) 
+    
     @action(detail=False,
             methods=['post'])
     def change_password(self, request, *args, **kwargs):
@@ -475,6 +473,7 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                                             'status': 'error',
                                             'message': 'Invalid id for department'
                                         })
+                                send_new_employee_email(email, f_name, id_no, f_name)
                                 return Response({
                                     'status': 'success',
                                     'message': f'Account created successfully. username is {id_no} and password is {f_name}',

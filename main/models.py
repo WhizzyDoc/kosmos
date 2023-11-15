@@ -72,7 +72,7 @@ class BankAccount(models.Model):
 
 
 class Reward(models.Model):
-    owner = models.ForeignKey(Profile, on_delete=models.CASCADE) 
+    title = models.CharField(max_length=250, null=True, blank=True) 
     description = models.TextField(null=True, blank=True)
     
 class Task(models.Model):
