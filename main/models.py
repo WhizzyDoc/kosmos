@@ -5,6 +5,7 @@ from django_countries.fields import CountryField
 from tinymce.models import HTMLField
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.fields import GenericForeignKey
+import uuid
 
 # Create your models here.
 class Position(models.Model):
@@ -71,10 +72,8 @@ class BankAccount(models.Model):
 
 
 class Reward(models.Model):
-    title = models.CharField(max_length=250, null=True, blank=True)
+    owner = models.ForeignKey(Profile, on_delete=models.CASCADE) 
     description = models.TextField(null=True, blank=True)
-    def __str__(self):
-        return str(self.description)
     
 class Task(models.Model):
     title = models.CharField(max_length=250, null=True, blank=True)
@@ -103,39 +102,6 @@ class Complaint(models.Model):
         return str(self.title)
     class Meta:
         ordering = ['-date']
-
-class Query(models.Model):
-    addressed_to = models.ForeignKey(Profile, related_name="queries", null=True, blank=True, on_delete=models.CASCADE)
-    title = models.CharField(max_length=250, null=True, blank=True)
-    query = HTMLField(null=True, blank=True)
-    addressed = models.BooleanField(default=False)
-    date = models.DateTimeField(default=timezone.now)
-    def __str__(self):
-        return str(self.title)
-    class Meta:
-        ordering = ['-date']
-
-
-class Log(models.Model):
-    user = models.ForeignKey(Profile, related_name='activity_logs', db_index=True, on_delete=models.CASCADE)
-    action = models.TextField()
-    date = models.DateTimeField(auto_now_add=True)
-    class Meta:
-        ordering = ['-date']
-    def __str__(self):
-        return f'{self.action}'
-
-class Notification(models.Model):
-    user = models.ForeignKey(Profile, related_name='notifications', db_index=True, on_delete=models.CASCADE)
-    verb = models.CharField(max_length=255)
-    target_ct = models.ForeignKey(ContentType, blank=True, null=True, related_name='target_obj', on_delete=models.CASCADE)
-    target_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
-    target = GenericForeignKey('target_ct', 'target_id')
-    created = models.DateTimeField(auto_now_add=True, db_index=True)
-    class Meta:
-        ordering = ('-created',)
-    def __str__(self):
-        return f'{self.user.first_name} {self.verb}'
         
 class GroupChat(models.Model):
     title = models.CharField(max_length=250, blank=True)
@@ -157,3 +123,44 @@ class ChatMessage(models.Model):
         return f'{self.sender.__str__()}\'s message'
     class Meta:
         ordering = ['date']
+
+
+class Query(models.Model):
+    addressed_to = models.ForeignKey(Profile, related_name="queries", null=True, blank=True, on_delete=models.CASCADE)
+    title = models.CharField(max_length=250, null=True, blank=True)
+    query = HTMLField(null=True, blank=True)
+    addressed = models.BooleanField(default=False)
+    date = models.DateTimeField(default=timezone.now)
+    def __str__(self):
+        return str(self.title)
+    class Meta:
+        ordering = ['-date']
+
+class Log(models.Model):
+    user = models.ForeignKey(Profile, related_name='activity_logs', db_index=True, on_delete=models.CASCADE)
+    action = models.TextField()
+    date = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        ordering = ['-date']
+    def __str__(self):
+        return f'{self.action}'
+
+
+class Notification(models.Model):
+    user = models.ForeignKey(Profile, related_name='notifications', db_index=True, on_delete=models.CASCADE)
+    verb = models.CharField(max_length=255)
+    target_ct = models.ForeignKey(ContentType, blank=True, null=True, related_name='target_obj', on_delete=models.CASCADE)
+    target_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    target = GenericForeignKey('target_ct', 'target_id')
+    created = models.DateTimeField(auto_now_add=True, db_index=True)
+    class Meta:
+        ordering = ('-created',)
+    def __str__(self):
+        return f'{self.user.first_name} {self.verb}'
+
+class ForgottenPassword(models.Model):
+    user = models.ForeignKey(Profile, related_name = "forgotten_password", on_delete = models.CASCADE)
+    temporary_password = models.CharField(max_length = 100)
+
+    def __str__(self):
+        return str(self.user)
