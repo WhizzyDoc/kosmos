@@ -170,3 +170,29 @@ class QuerySerializer(ModelSerializer):
         data["addressed_to"] = data["addressed_to"]["first_name"] + " " + data["addressed_to"]["last_name"]
 
         return data
+
+class LogSerializer(ModelSerializer):
+    user = ProfileSerializer()
+    class Meta:
+        model = Log
+        fields = "__all__"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        data["user"] = data["user"]["first_name"] + " " + data["user"]["last_name"]
+
+        return data
+
+class NotificationSerializer(ModelSerializer):
+    user = ProfileSerializer()
+    class Meta:
+        model = Notification
+        fields = "__all__"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        data["user"] = data["user"]["first_name"] + " " + data["user"]["last_name"]
+
+        return data
