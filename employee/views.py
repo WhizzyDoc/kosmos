@@ -1,5 +1,6 @@
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.models import User
+from rest_framework.decorators import APIView
 from rest_framework.generics import GenericAPIView, RetrieveUpdateDestroyAPIView, ListCreateAPIView, CreateAPIView, ListAPIView, RetrieveAPIView, UpdateAPIView, DestroyAPIView
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework import status
@@ -11,6 +12,8 @@ from django.contrib.auth.views import PasswordResetConfirmView
 from admins.views import generate_token
 from admins.models import *
 from .serializers import *
+import uuid
+from main.utils import sendmail
 
 # Create your views here.
 
@@ -19,7 +22,14 @@ class LoginView(GenericAPIView):
     permission_classes = [AllowAny]
     def post(self, request, *args, **kwargs):
         try:
-            user = get_object_or_404(User, username = request.data["username"])
+            user_id = request.data["user_id"]
+            try:
+                username = Profile.objects.get(id_no=user_id).user.username
+            except:
+                return Response({
+                    "error": "Invalid Details"
+                }, status = status.HTTP_404_NOT_FOUND)
+            user = get_object_or_404(User, username = username)
 
             if not user.check_password(request.data["password"]):
                 return Response({
@@ -542,3 +552,111 @@ class QueryView(RetrieveAPIView):
         serializer = self.serializer_class(query, many = True)
         return Response(serializer.data, status = status.HTTP_200_OK)
     
+class LogView(RetrieveAPIView):
+    queryset = Log.objects.all()
+    permission_classes = [AllowAny]
+    serializer_class = LogSerializer
+
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user = Profile.objects.get(api_token=api_token)
+            user_pk = user.pk
+        except Profile.DoesNotExist:
+            return Response(
+                {"Error": "Profile not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        logs = Log.objects.filter(user=user)
+
+        serializer = self.serializer_class(logs, many=True)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+class NotificationsView(RetrieveAPIView):
+    queryset = Notification.objects.all()
+    permission_classes = [AllowAny]
+    serializer_class = NotificationSerializer
+
+    def get(self, request, api_token, *args, **kwargs):
+        try:
+            user = Profile.objects.get(api_token=api_token)
+            user_pk = user.pk
+        except Profile.DoesNotExist:
+            return Response(
+                {"Error": "Profile not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        notifications = Notification.objects.all()
+
+        serializer = self.serializer_class(notifications, many=True)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+
+class ForgotPassword_GetNewPasswordView(APIView):
+    permission_classes = [AllowAny]
+    def post(self, request, *args, **kwargs):
+        # Get user_id
+
+        user_id = request.data["user_id"]
+        try:
+            user_profile = Profile.objects.get(id_no = user_id)
+        except:
+            return Response({
+                "details": "not found"
+            }, status = status.HTTP_404_NOT_FOUND)
+
+        # Get user's email
+        user_email = user_profile.email
+
+        # Generate a new Password
+        new_password = str(uuid.uuid4()).replace("-", "")[:9]
+
+        # Save and Send user the new Password
+        sendmail(user_email, new_password)
+        print(new_password)
+
+        save_password = ForgottenPassword.objects.create(
+            user = user_profile,
+            temporary_password = new_password
+        )
+        save_password.save()
+        return Response({
+            "details": "Email Sent"
+        }, status = status.HTTP_201_CREATED)
+
+
+class ResetPassword(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+
+        new_password = request.data["new_password"]
+        user_id = request.data["user_id"]
+
+        try:
+            # Check if details exist
+            user_profile = Profile.objects.get(id_no = user_id)
+            
+            forgot_id_details = ForgottenPassword.objects.get(user = user_profile.pk, temporary_password = new_password)
+        except:
+            return Response({
+                "details": "The data you entered don't match!"
+            })
+
+        user_profile.user.password = forgot_id_details.temporary_password
+
+        forgot_id_details.delete()
+        print(forgot_id_details.id)
+
+        return Response({
+            "success": "You've successfully updated your password"
+        }, status = status.HTTP_200_OK)
