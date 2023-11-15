@@ -655,7 +655,6 @@ class ResetPassword(APIView):
         user_profile.user.password = forgot_id_details.temporary_password
 
         forgot_id_details.delete()
-        print(forgot_id_details.id)
 
         return Response({
             "success": "You've successfully updated your password"
