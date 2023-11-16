@@ -16,7 +16,6 @@ class PositionSerializer(ModelSerializer):
         model = Position
         fields = "__all__"
 
-
 class ProfileSerializer(ModelSerializer):
     department = DepartmentSerializer()
     position = PositionSerializer()
@@ -33,6 +32,13 @@ class ProfileSerializer(ModelSerializer):
 
         return data
 
+class ProfileSerializerOthers(ModelSerializer):
+
+    class Meta:
+        model = Profile
+        exclude = ["user", "api_token"]
+        # fields = "__all__"
+        read_only_fields = Profile._meta.get_fields()
 
 
 class BankAccountSerializer(ModelSerializer):
@@ -159,7 +165,7 @@ class ChatMessageSerializerGet(ModelSerializer):
         return data
 
 class QuerySerializer(ModelSerializer):
-    addressed_to = ProfileSerializer()
+    addressed_to = ProfileSerializerOthers()
     class Meta:
         fields = "__all__"
         model = Query
@@ -172,7 +178,7 @@ class QuerySerializer(ModelSerializer):
         return data
 
 class LogSerializer(ModelSerializer):
-    user = ProfileSerializer()
+    user = ProfileSerializerOthers()
     class Meta:
         model = Log
         fields = "__all__"
@@ -185,7 +191,7 @@ class LogSerializer(ModelSerializer):
         return data
 
 class NotificationSerializer(ModelSerializer):
-    user = ProfileSerializer()
+    user = ProfileSerializerOthers()
     class Meta:
         model = Notification
         fields = "__all__"
@@ -194,5 +200,21 @@ class NotificationSerializer(ModelSerializer):
         data = super().to_representation(instance)
 
         data["user"] = data["user"]["first_name"] + " " + data["user"]["last_name"]
+
+        return data
+
+
+class TaskSerializer(ModelSerializer):
+    assigned_to = ProfileSerializerOthers()
+    created_by = ProfileSerializerOthers()
+    class Meta:
+        fields = "__all__"
+        model = Task
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+
+        data["assigned_to"] = data["assigned_to"]["first_name"] + " " + data["assigned_to"]["last_name"]
+        data["created_by"] = data["created_by"]["first_name"] + " " + data["created_by"]["last_name"]
 
         return data
