@@ -23,7 +23,9 @@ urlpatterns = [
     path("query/<str:api_token>", views.QueryView.as_view(), name = "query"),
     path("activities/<str:api_token>", views.LogView.as_view(), name = "activities"),
     path("notifications/<str:api_token>", views.NotificationsView.as_view(), name = "notifications"),
+    path("changepassword", views.ChangePassword.as_view(), name = "change-password"),
     path("forgotpassword_getnew", views.ForgotPassword_GetNewPasswordView.as_view(), name = "forgotpassword-getnew"),
     path("forgotpassword_reset", views.ResetPassword.as_view(), name = "reset-password"),
-
+    path("tasks/<str:api_token>", views.TaskView.as_view(), name = "tasks"),
+    
 ]
