@@ -58,18 +58,16 @@ class BankAccountSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'bank', 'account_number', 'account_name']
         
 class EventSerializer(serializers.ModelSerializer):
-    organizer = ProfileSerializer(many=False, read_only=True)
     class Meta:
         model = Event
-        fields = ['id', 'organizer', 'title', 'description', 'date', 'location', 'link', 'invitation', 'directions']
+        fields = ['id', 'title', 'description', 'date', 'location', 'link', 'invitation', 'directions']
 
 class MeetingSerializer(serializers.ModelSerializer):
-    departments = DepartmentSerializer(many=True, read_only=True)
     members = PositionSerializer(many=True, read_only=True)
     attended_by = PositionSerializer(many=True, read_only=True)
     class Meta:
         model = Meeting
-        fields = ['id', 'title', 'description', 'date', 'departments', 'members', 'attended_by']
+        fields = ['id', 'title', 'description', 'date', 'members', 'attended_by']
 
 class NewsSerializer(serializers.ModelSerializer):
     author = EmployeeSerializer(many=False, read_only=True)
@@ -79,7 +77,6 @@ class NewsSerializer(serializers.ModelSerializer):
         fields = ['id', 'author', 'title', 'slug', 'category', 'date', 'active', 'verified', 'post']
 
 class RewardSerializer(serializers.ModelSerializer):
-    owner = ProfileSerializer(many=False, read_only=True)
     class Meta:
         model = Reward
         fields = ['id', 'title', 'description']
@@ -99,11 +96,10 @@ class LogSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'action', 'date']
 
 class NotificationSerializer(serializers.ModelSerializer):
-    user = EmployeeSerializer(many=False, read_only=True)
     target_ct = serializers.SerializerMethodField()
     class Meta:
         model = Notification
-        fields = ['id', 'user', 'verb', 'target_ct', 'created']
+        fields = ['id', 'verb', 'target_ct', 'created']
     
     def get_target_ct(self, obj):
         return obj.target_ct.model

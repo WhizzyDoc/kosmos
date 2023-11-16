@@ -1083,7 +1083,7 @@ class BankViewSet(viewsets.ReadOnlyModelViewSet):
             stop = page * per_page
             total_items = Bank.objects.filter(Q(bank_name__icontains=query) | Q(bank_code__icontains=query)).count()
             total_pages = math.ceil(total_items/per_page)
-            banks = Bank.objects.filter(Q(bank_name__icontains=query) | Q(bank_code__icontains=query))
+            banks = Bank.objects.filter(Q(bank_name__icontains=query) | Q(bank_code__icontains=query))[start:stop]
             if banks.exists():
                 return Response({
                     'status': 'success',
@@ -1955,7 +1955,6 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
         key = request.POST.get('api_token')
         id = int(request.POST.get('news_id'))
         title = request.POST.get('title')
-        slug = slugify(title)
         post = request.POST.get('post')
         active = request.POST.get('active')
         verified = request.POST.get('verified')
@@ -1966,37 +1965,47 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
             user = profile.user
             if admin_group in user.groups.all():
                 try:
-                    category = NewsCategory.objects.get(id=cat_id)
+                    news = News.objects.get(id=id)
                     try:
-                        news = News.objects.get(id=id)
-                        try:
-                            news.title =title
+                        if cat_id:
+                            try:
+                                category = NewsCategory.objects.get(id=cat_id)
+                                news.category = category
+                                news.save()
+                            except:
+                                return Response({
+                                    "status": "error",
+                                    "message": f"category  with id \'{id}\' does not exist"
+                                })
+                        if title:
+                            news.title = title
+                            slug = slugify(title)
                             news.slug = slug
-                            news.post = post
-                            news.active = active
-                            news.verified = verified
-                            news.category = category
                             news.save()
-                            Log.objects.create(user=profile, action=f"edited a news post {title}")
-                            return Response({
-                                'status': "success",
-                                "message": f"\'{news.title}\' edited sucessfully",
-                                "data": NewsSerializer(news).data,
-                            })
-                        except:
-                            return Response({
-                                'status': "error",
-                                "message": "error while saving news"
-                            })
+                        if post:
+                            news.post = post
+                            news.save()
+                        if active:
+                            news.active = active
+                            news.save()
+                        if verified:
+                            news.verified = verified
+                            news.save()
+                        Log.objects.create(user=profile, action=f"edited a news post {title}")
+                        return Response({
+                            'status': "success",
+                            "message": f"\'{news.title}\' edited sucessfully",
+                            "data": NewsSerializer(news).data,
+                        })
                     except:
                         return Response({
                             'status': "error",
-                            "message": "invalid news id"
+                            "message": "error while saving news"
                         })
                 except:
                     return Response({
-                        "status": "error",
-                        "message": f"category  with id \'{id}\' does not exist"
+                        'status': "error",
+                        "message": "invalid news id"
                     })
             else:
                 return Response({
@@ -2173,20 +2182,26 @@ class MeetingViewSet(viewsets.ReadOnlyModelViewSet):
             if admin_group in user.groups.all():
                 try:
                     meeting = Position.objects.get(id=id)
-                    meeting.title = title
-                    meeting.description = description
-                    meeting.save()
+                    if title:
+                        meeting.title = title
+                        meeting.save()
+                    if description:
+                        meeting.description = description
+                        meeting.save()
+                    
+                    if mem_ids:
+                        members = Position.objects.filter(id__in=mem_ids)
+                        for m in members:
+                            if m not in meeting.members.all():
+                                meeting.members.add(m)
+                                meeting.save()
+                    if att_ids:
+                        att_by = Position.objects.filter(id__in=att_ids)
+                        for m in att_by:
+                            if m not in meeting.attended_by.all():
+                                meeting.attended_by.add(m)
+                                meeting.save()
                     Log.objects.create(user=profile, action=f"edited a meeting {title}")
-                    members = Position.objects.filter(id__in=mem_ids)
-                    for m in members:
-                        if m not in meeting.members.all():
-                            meeting.members.add(m)
-                            meeting.save()
-                    att_by = Position.objects.filter(id__in=att_ids)
-                    for m in att_by:
-                        if m not in meeting.attended_by.all():
-                            meeting.attended_by.add(m)
-                            meeting.save()
                     return Response({
                         'status': "success",
                         "message": "meeting edited sucessfully",
@@ -2385,14 +2400,27 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
             if admin_group in user.groups.all():
                 try:
                     event = Event.objects.get(id=id)
-                    event.title = title
-                    event.description=description
-                    event.date = date
-                    event.location = location
-                    event.link = link
-                    event.invitation = invitation
-                    event.directions = directions
-                    event.save()
+                    if title:
+                        event.title = title
+                        event.save()
+                    if description:
+                        event.description = description
+                        event.save()
+                    if date:
+                        event.date = date
+                        event.save()
+                    if location:
+                        event.location = location
+                        event.save()
+                    if link:
+                        event.link = link
+                        event.save()
+                    if invitation:
+                        event.invitation = invitation
+                        event.save()
+                    if directions:
+                        event.directions = directions
+                        event.save()
                     Log.objects.create(user=profile, action=f"edited an event {event.title}")
                     return Response({
                         'status': "success",
@@ -3118,10 +3146,10 @@ class LogViewSet(viewsets.ReadOnlyModelViewSet):
             if id is None:
                 total_items = Log.objects.filter(action__icontains=query).count()
                 logs = Log.objects.filter(action__icontains=query)[start:stop]
-            else:
+            elif id is not None:
                 employee = Profile.objects.get(id_no=id)
-                total_items = Log.objects.filter(user=employee).filter(title__icontains=query).count()
-                logs = Log.objects.filter(user=employee).filter(title__icontains=query)[start:stop]
+                total_items = employee.activity_logs.filter(title__icontains=query).count()
+                logs = employee.activity_logs.filter(title__icontains=query)[start:stop]
             total_pages = math.ceil(total_items/per_page)
             if logs.exists():
                 return Response({
@@ -3148,34 +3176,6 @@ class LogViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({
                 'status': 'error',
                 'message': 'Error getting log list'
-            })
-    @action(detail=False,
-            methods=['get'])
-    def get_log(self, request, *args, **kwargs):
-        id = self.request.query_params.get('log_id')
-        if id:
-            try:
-                log = Log.objects.get(id=int(id))
-                if log is not None:
-                    return Response({
-                        'status': 'success',
-                        'data': LogSerializer(log).data,
-                        'message': 'log details retrieved'
-                    })
-                else:
-                    return Response({
-                        'status': 'success',
-                        'message': 'Invalid log ID'
-                    })
-            except:
-                return Response({
-                    'status': 'error',
-                    'message': 'Invalid log ID'
-                })
-        else:
-            return Response({
-                'status': 'success',
-                'message': 'Invalid log ID'
             })
     @action(detail=False,
             methods=['post'])
@@ -3261,34 +3261,6 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({
                 'status': 'error',
                 'message': 'Error getting notification list'
-            })
-    @action(detail=False,
-            methods=['get'])
-    def get_notification(self, request, *args, **kwargs):
-        id = self.request.query_params.get('notification_id')
-        if id:
-            try:
-                notification = Notification.objects.get(id=int(id))
-                if notification is not None:
-                    return Response({
-                        'status': 'success',
-                        'data': NotificationSerializer(notification).data,
-                        'message': 'notification details retrieved'
-                    })
-                else:
-                    return Response({
-                        'status': 'success',
-                        'message': 'Invalid notification ID'
-                    })
-            except:
-                return Response({
-                    'status': 'error',
-                    'message': 'Invalid notification ID'
-                })
-        else:
-            return Response({
-                'status': 'success',
-                'message': 'Invalid notification ID'
             })
     @action(detail=False,
             methods=['post'])
@@ -3452,9 +3424,12 @@ class RewardViewSet(viewsets.ReadOnlyModelViewSet):
             if admin_group in user.groups.all():
                 try:
                     reward = Reward.objects.get(id=id)
-                    reward.title = title
-                    reward.description = description
-                    reward.save()
+                    if title:
+                        reward.title = title
+                        reward.save()
+                    if description:
+                        reward.description = description
+                        reward.save()
                     Log.objects.create(user=profile, action=f"edited reward {reward.title}")
                     return Response({
                         'status': "success",
