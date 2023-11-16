@@ -600,6 +600,37 @@ class NotificationsView(RetrieveAPIView):
             status=status.HTTP_200_OK
         )
 
+class ChangePassword(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+
+        new_password = request.data["new_password"]
+        old_password = request.data["old_password"]
+        user_id = request.data["user_id"]
+        print(user_id)
+        print(new_password)
+        print(old_password)
+
+        try:
+            # Check if details exist
+            user_profile = Profile.objects.get(id_no = user_id)
+            user = user_profile.user
+            if user.check_password(old_password):
+                user.set_password(new_password)
+                user.save()
+
+                return Response({
+                    'message': 'Successfully changed password'
+                }, status = status.HTTP_200_OK)
+            else:
+                return Response({
+                    "error": "Your previous login details don't match!"
+                }, status = status.HTTP_400_BAD_REQUEST)
+        except:
+            return Response({
+                "details": "The data you entered don't match!"
+            })
 
 class ForgotPassword_GetNewPasswordView(APIView):
     permission_classes = [AllowAny]
@@ -659,3 +690,31 @@ class ResetPassword(APIView):
         return Response({
             "success": "You've successfully updated your password"
         }, status = status.HTTP_200_OK)
+
+
+class TaskView(RetrieveAPIView):
+    queryset = Task.objects.all()
+    permission_classes = [AllowAny]
+    serializer_class = TaskSerializer
+    def get(self, request, api_token, format=None):
+        
+        try:
+            user = Profile.objects.get(api_token = api_token)
+            user_pk = user.pk
+        except:
+            return Response({
+                "Error": "Sorry, an error occured"
+                }, status=status.HTTP_403_FORBIDDEN)
+        task_id = request.query_params.get("id")
+        if task_id:
+            try:
+                task = Task.objects.get(id = task_id, assigned_to = user_pk)
+                serializer = self.serializer_class(task)
+                return Response(serializer.data, status = status.HTTP_200_OK)
+            except:
+                    return Response({
+                        "details": "query not found"
+                    }, status = status.HTTP_404_NOT_FOUND)
+        task = Task.objects.filter(assigned_to = user_pk)
+        serializer = self.serializer_class(task, many = True)
+        return Response(serializer.data, status = status.HTTP_200_OK)
