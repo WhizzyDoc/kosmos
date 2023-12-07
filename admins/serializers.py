@@ -9,10 +9,16 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username']
 
+class PlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Plan
+        fields = ['id', 'title', 'price', 'level']
+
 class SiteSerializer(serializers.ModelSerializer):
+    plan = PlanSerializer(many=False, read_only=True)
     class Meta:
         model = Site
-        fields = ['title', 'tagline', 'company_email', 'logo', 'about', 'objectives', 'mission', 'last_modified']
+        fields = ['title', 'tagline', 'plan', 'company_email', 'logo', 'about', 'objectives', 'mission', 'last_modified']
 
 class PositionSerializer(serializers.ModelSerializer):
     class Meta:

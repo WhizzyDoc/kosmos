@@ -5,13 +5,24 @@ from main.models import Profile, Department, Position
 from tinymce.models import HTMLField
 
 # Create your models here.
+class Plan(models.Model):
+    title = models.CharField(max_length=200)
+    price = models.BigIntegerField(default=0)
+    level = models.PositiveIntegerField(default=0)
+    def __str__(self):
+        return self.title
+    class Meta:
+        ordering = ['level','id']
+
 class Site(models.Model):
+    owner = models.OneToOneField(Profile, on_delete=models.CASCADE, related_name="site", null=True)
     title = models.CharField(max_length=100, null=True, blank=True, verbose_name="Site Title")
     tagline = models.CharField(max_length=100, null=True, blank=True, verbose_name="Site Tagline")
     logo = models.ImageField(upload_to="site/logo/", null=True, blank=True)
     about = HTMLField(null=True, blank=True, verbose_name="About Organization")
     objectives = HTMLField(null=True, blank=True)
     company_email = models.EmailField(blank=True, null=True)
+    plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, related_name="plan_sites", null=True, blank=True)
     mission = HTMLField(null=True, blank=True)
     created = models.DateTimeField(default=timezone.now)
     last_modified = models.DateTimeField(auto_now=True, null=True)
@@ -72,4 +83,3 @@ class News(models.Model):
     class Meta:
         ordering = ['-date']
 
-    
