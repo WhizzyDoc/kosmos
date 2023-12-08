@@ -18,7 +18,8 @@ class SiteSerializer(serializers.ModelSerializer):
     plan = PlanSerializer(many=False, read_only=True)
     class Meta:
         model = Site
-        fields = ['title', 'tagline', 'plan', 'company_email', 'logo', 'about', 'objectives', 'mission', 'last_modified']
+        fields = ['title', 'logo', 'about', 'email', 'phone_number', 'address', 
+                  'type', 'no_of_employees', 'plan', 'created', 'last_modified']
 
 class PositionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -40,6 +41,12 @@ class BankSerializer(serializers.ModelSerializer):
         model = Bank
         fields = ['id', 'bank_name', 'bank_code']
 
+class AdminSerializer(serializers.ModelSerializer):
+    user = UserSerializer(many=False, read_only=True)
+    class Meta:
+        model = Admins
+        fields = ['id', 'user', 'first_name', 'last_name', 'email', 'phone_number',
+                  'image', 'api_token']
 
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(many=False, read_only=True)

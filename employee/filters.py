@@ -11,5 +11,4 @@ class ProfileFilter(django_filters.FilterSet):
             'nationality': ['exact', 'icontains'],
             'position': ['exact'],
             'department': ['exact'],
-            'is_premium_user': ['exact', 'icontains'],
         }

@@ -4,7 +4,7 @@ from . import views
 
 router = routers.DefaultRouter()
 router.register('site', views.SiteViewSet)
-router.register('profile', views.ProfileViewSet)
+router.register('admins', views.AdminViewSet)
 router.register('departments', views.DepartmentViewSet)
 router.register('positions', views.PositionViewSet)
 router.register('banks', views.BankViewSet)

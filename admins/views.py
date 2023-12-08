@@ -32,11 +32,6 @@ import decimal
 import math
 import string
 
-employee_group, created = Group.objects.get_or_create(name="employee")
-admin_group, created = Group.objects.get_or_create(name="admin")
-staff_group, created = Group.objects.get_or_create(name="staff")
-
-
 def slugify(s):
     s = s.lower().strip()
     s = re.sub(r'[^\w\s-]', '', s)
@@ -107,11 +102,10 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
     def get_site_info(self, request, *args, **kwargs):
         api_token = self.request.query_params.get('api_token')
         try:
-            profile = Profile.objects.get(api_token=api_token)
-            user = profile.user
-            if admin_group in user.groups.all():
+            admin = Admins.objects.get(api_token=api_token)
+            if admin is not None:
                 try:
-                    site = Site.objects.get(owner=profile)
+                    site = Site.objects.get(owner=admin)
                     if site is not None:
                         return Response({
                             'status': 'success',
@@ -145,38 +139,48 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
         if request.method == 'POST':
             api_token = request.POST.get('api_token')
             title = request.POST.get('title')
-            tagline = request.POST.get('tagline')
-            about = request.POST.get('about')
+            phone = request.POST.get('phone')
+            address = request.POST.get('address')
             email = request.POST.get("email")
-            objectives = request.POST.get('objectives')
-            mission = request.POST.get('mission')
-            logo = None
-            if request.FILES:
-                logo = request.FILES.get('logo')
+            type = request.POST.get('type')
+            about = request.POST.get('about')
+            no_of_emp = request.POST.get('no_of_employees')
             try:
-                profile = Profile.objects.get(api_token=api_token)
-                user = profile.user
-                if admin_group in user.groups.all():
+                admin = Admins.objects.get(api_token=api_token)
+                if admin is not None:
                     try:
-                        site = Site.objects.first()
-                        if site is not None:
-                            return Response({
-                                'status': 'error',
-                                'message': 'site already exists, edit site info instead'
-                            })
-                        new_site = Site(title=title, tagline=tagline, logo=logo, about=about, objectives=objectives,
-                                        mission=mission, company_email=email)
-                        new_site.save()
+                        site = Site.objects.get(owner=admin)
+                        site.title = title
+                        site.phone_number = phone
+                        site.address = address
+                        site.email = email
+                        site.about = about
+                        site.type = type
+                        site.no_of_employees = int(no_of_emp)
+                        site.save()
                         return Response({
                             'status': 'success',
-                            'message': 'site created sucessfully',
-                            'data': SiteSerializer(new_site).data
+                            'message': 'Company info saved sucessfully',
+                            'data': SiteSerializer(site).data
                         })
                     except:
-                        return Response({
-                            'status': 'error',
-                            'message': 'error while creating site info'
-                        })
+                        try:
+                            new_site = Site(title=title, phone_number=phone, address=address, email=email,
+                                                type=type, no_of_employees=int(no_of_emp), owner=admin, about=about)
+                            new_site.save()
+                            plan = Plan.objects.get(level=1)
+                            new_site.plan = plan
+                            new_site.save()
+                            return Response({
+                                'status': 'success',
+                                'message': 'Company info saved sucessfully',
+                                'data': SiteSerializer(new_site).data
+                            })
+                        except:
+                            return Response({
+                                'status': 'error',
+                                'message': 'error while saving company info'
+                            })
                 else:
                     return Response({
                         'status': 'error',
@@ -264,9 +268,9 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': 'GET method not allowed'
             })
 
-class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Profile.objects.all()
-    serializer_class = ProfileSerializer
+class AdminViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Admins.objects.all()
+    serializer_class = AdminSerializer
     permission_classes = [AllowAny]
     @action(detail=False,
             methods=['post'])
@@ -274,8 +278,6 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         email = request.POST.get('email')
         f_name = request.POST.get('first_name')
         l_name = request.POST.get('last_name')
-        m_name = request.POST.get('middle_name')
-        nationality = request.POST.get('nationality')
         phone_number = request.POST.get('phone_number')
         #image = request.FILES.get('image')
         username = request.POST.get('username')
@@ -297,27 +299,23 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': f"Invalid password",
             })
         try:
-            admin = User.objects.get(groups=admin_group)
-            if admin is not None:
-                return Response({
-                    'status': 'error',
-                    'message': f'An admin account already exists.',
-                })
-            new_user = User(email=email, first_name=f_name, last_name=l_name, username=username, is_superuser=True, is_staff=True)
+            new_user = User(email=email, first_name=f_name, last_name=l_name, username=username)
             new_user.set_password(password)
             new_user.save()
-            new_user.groups.add(admin_group)
-            new_user.save()
             try:
+                print('hi')
                 api_key = generate_token()
+                print('hello')
                 # create a new profile
-                new_profile = Profile(user=new_user, email=email, first_name=f_name, last_name=l_name, api_token=api_key,
-                                      middle_name=m_name, nationality=nationality, phone_number=phone_number)
+                new_profile = Admins(user=new_user, email=email, first_name=f_name, last_name=l_name, api_token=api_key,
+                                    phone_number=phone_number)
+                print('he')
                 new_profile.save()
+                #confirmation_email(email, f_name)
                 return Response({
                         'status': 'success',
                         'message': f'Admin account created successfully',
-                        'data': ProfileSerializer(new_profile).data
+                        'data': AdminSerializer(new_profile).data
                     })
             except:
                 return Response({
@@ -527,25 +525,6 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
                 "message": "Invalid API token"
             })
 
-    @action(detail=False, methods=['get'])
-    def check_admin_account(self, request, *args, **kwargs):
-        try:
-            users = User.objects.filter(groups=admin_group)
-            if users.exists():
-                return Response({
-                 "status": "success",
-                 "message": True
-                })
-            else:
-                return Response({
-                    "status": "success",
-                    "message": False
-                })
-        except:
-            return Response({
-                "status": "error",
-                "message": "error occured"
-            })
     @action(detail=False,
             methods=['post'])
     def authentication(self, request, *args, **kwargs):
@@ -554,15 +533,15 @@ class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             if user.is_active:
-                if admin_group in user.groups.all():
+                try:
+                    admin = Admins.objects.get(user=user)
                     login(request, user)
-                    profile = get_object_or_404(Profile, user=user)
                     return Response({
                         'status': "success",
                         "message": "login successful",
-                        "data": ProfileSerializer(profile).data,
+                        "data": AdminSerializer(admin).data,
                     })
-                else:
+                except:
                     return Response({
                         'status': 'error',
                         'message': "User is not authorized",
