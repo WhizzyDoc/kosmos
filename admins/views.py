@@ -159,6 +159,7 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
                         site.type = type
                         site.no_of_employees = int(no_of_emp)
                         site.save()
+                        Log.objects.create(user=admin.user, action="edited site information", site=site)
                         return Response({
                             'status': 'success',
                             'message': 'Company info saved sucessfully',
@@ -172,6 +173,7 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
                             plan = Plan.objects.get(level=1)
                             new_site.plan = plan
                             new_site.save()
+                            Log.objects.create(user=admin.user, action="created site information", site=new_site)
                             return Response({
                                 'status': 'success',
                                 'message': 'Company info saved sucessfully',
@@ -347,7 +349,6 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
         state = request.POST.get('state')
         nationality = request.POST.get('nationality')
         phone_number = request.POST.get('phone_number')
-        a_type = request.POST.get('account_type')
         salary = request.POST.get('salary')
         position = request.POST.get('position')
         department = request.POST.get('department')
@@ -396,15 +397,6 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
                                 id_no = generate_id(new_user.id)
                                 new_user.username = id_no
                                 new_user.save()
-                                if a_type == 'staff':
-                                    new_user.groups.add(staff_group)
-                                    new_user.save()
-                                elif a_type == 'employee':
-                                    new_user.groups.add(employee_group)
-                                    new_user.save()
-                                else:
-                                    new_user.groups.add(employee_group)
-                                    new_user.save()
                                 # creates a new API key for user instance
                                 api_key = generate_token()
                                 # create a new profile
@@ -466,6 +458,8 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
                 try:
                     admin = Admins.objects.get(user=user)
                     login(request, user)
+                    site = Site.objects.get(owner=admin)
+                    Log.objects.create(user=user, action="logged in", site=site)
                     return Response({
                         'status': "success",
                         "message": "login successful",
@@ -491,11 +485,10 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
     def admin_logout(self, request, *args, **kwargs):
         key = request.POST.get('api_token')
         try:
-            profile = Profile.objects.get(api_token=key)
-            user = profile.user
-            if admin_group in user.groups.all():
-                user.is_authenticated = False
-                user.save()
+            admin = Admins.objects.get(api_token=key)
+            if admin is not None:
+                site = Site.objects.get(owner=admin)
+                Log.objects.create(user=admin.user, action="logged out", site=site)
                 return Response({
                     'status': "success",
                     "message": "logout successful"
@@ -782,7 +775,10 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
         page = self.request.query_params.get('page')
         per_page = self.request.query_params.get('per_page')
         query = self.request.query_params.get('search')
+        key = self.request.query_params.get('api_token')
         try:
+            admin = Admins.objects.get(api_token=key)
+            site = Site.objects.get(owner=admin)
             if page is None:
                 page = 1
             else:
@@ -795,9 +791,9 @@ class DepartmentViewSet(viewsets.ReadOnlyModelViewSet):
                 query = ""
             start = (page - 1) * per_page
             stop = page * per_page
-            total_items = Department.objects.filter(title__icontains=query).count()
+            total_items = Department.objects.filter(title__icontains=query, site=site).count()
             total_pages = math.ceil(total_items/per_page)
-            departments = Department.objects.filter(title__icontains=query)[start:stop]
+            departments = Department.objects.filter(title__icontains=query, site=site)[start:stop]
             if departments.exists():
                 return Response({
                     'status': 'success',
@@ -1313,7 +1309,12 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
         page = self.request.query_params.get('page')
         per_page = self.request.query_params.get('per_page')
         query = self.request.query_params.get('search')
+        key = self.request.query_params.get('api_token')
         try:
+            admin = Admins.objects.get(api_token=key)
+            print(admin.first_name)
+            site = Site.objects.get(owner=admin)
+            print(site.title)
             if page is None:
                 page = 1
             else:
@@ -1326,12 +1327,12 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                 query = ""
             start = (page - 1) * per_page
             stop = page * per_page
-            total_items = Profile.objects.exclude(user__groups=admin_group).filter(
+            total_items = Profile.objects.filter(site=site).filter(
                 Q(first_name__icontains=query) | Q(middle_name__icontains=query) |
                 Q(last_name__icontains=query) | Q(email__icontains=query) |
                 Q(phone_number__icontains=query)).count()
             total_pages = math.ceil(total_items/per_page)
-            employees = Profile.objects.exclude(user__groups=admin_group).filter(
+            employees = Profile.objects.filter(site=site).filter(
                 Q(first_name__icontains=query) | Q(middle_name__icontains=query) |
                 Q(last_name__icontains=query) | Q(email__icontains=query) |
                 Q(phone_number__icontains=query))[start:stop]
@@ -2811,8 +2812,11 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
         page = self.request.query_params.get('page')
         per_page = self.request.query_params.get('per_page')
         completed = self.request.query_params.get('addressed')
+        key = self.request.query_params.get('api_token')
         query = self.request.query_params.get('search')
         try:
+            admin = Admins.objects.get(api_token=key)
+            site = Site.objects.get(owner=admin)
             if page is None:
                 page = 1
             else:
@@ -2830,15 +2834,15 @@ class QueryViewSet(viewsets.ReadOnlyModelViewSet):
             com = None
 
             if completed is None:
-                total_items = Query.objects.filter(title__icontains=query).count()
-                queries = Query.objects.filter(title__icontains=query)[start:stop]
+                total_items = Query.objects.filter(site=site, title__icontains=query).count()
+                queries = Query.objects.filter(site=site, title__icontains=query)[start:stop]
             else:
                 if completed.lower() == 'true':
                     com = True
                 elif completed.lower() == 'false':
                     com = False
-                total_items = Query.objects.filter(addressed=com).filter(title__icontains=query).count()
-                queries = Query.objects.filter(addressed=com).filter(title__icontains=query)[start:stop]
+                total_items = Query.objects.filter(site=site, addressed=com).filter(title__icontains=query).count()
+                queries = Query.objects.filter(site=site, addressed=com).filter(title__icontains=query)[start:stop]
             total_pages = math.ceil(total_items/per_page)
             if queries.exists():
                 return Response({
@@ -3032,9 +3036,12 @@ class LogViewSet(viewsets.ReadOnlyModelViewSet):
     def get_logs(self, request, *args, **kwargs):
         page = self.request.query_params.get('page')
         per_page = self.request.query_params.get('per_page')
+        key = self.request.query_params.get('api_token')
         id = self.request.query_params.get('employee_id')
         query = self.request.query_params.get('search')
         try:
+            admin = Admins.objects.get(api_token=key)
+            site = Site.objects.get(owner=admin)
             if page is None:
                 page = 1
             else:
@@ -3052,12 +3059,12 @@ class LogViewSet(viewsets.ReadOnlyModelViewSet):
             employee = None
 
             if id is None:
-                total_items = Log.objects.filter(action__icontains=query).count()
-                logs = Log.objects.filter(action__icontains=query)[start:stop]
+                total_items = Log.objects.filter(action__icontains=query, site=site).count()
+                logs = Log.objects.filter(action__icontains=query, site=site)[start:stop]
             elif id is not None:
                 employee = Profile.objects.get(id_no=id)
-                total_items = employee.activity_logs.filter(title__icontains=query).count()
-                logs = employee.activity_logs.filter(title__icontains=query)[start:stop]
+                total_items = employee.activity_logs.filter(title__icontains=query, site=site).count()
+                logs = employee.activity_logs.filter(title__icontains=query, site=site)[start:stop]
             total_pages = math.ceil(total_items/per_page)
             if logs.exists():
                 return Response({

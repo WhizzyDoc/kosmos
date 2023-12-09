@@ -55,7 +55,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = ['id', 'user','title', 'first_name', 'middle_name', 'last_name', 'email', 'phone_number', 'date_of_birth',
-                  'address', 'appointment_date', 'position', 'department', 'id_no', 'salary', 'is_premium_user', 'image',
+                  'address', 'appointment_date', 'position', 'department', 'id_no', 'salary', 'image',
                   'api_token', 'city', 'state', 'nationality']
 
 class EmployeeSerializer(serializers.ModelSerializer):
