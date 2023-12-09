@@ -1818,11 +1818,6 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
         title = request.POST.get('title')
         slug = slugify(title)
         post = request.POST.get('post')
-<<<<<<< HEAD
-=======
-        active = request.POST.get('active')
-        verified = request.POST.get('verified')
->>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
         cat_id = int(request.POST.get('category_id'))
         try:
             profile = Profile.objects.get(api_token=key)
@@ -1832,11 +1827,7 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
                     category = NewsCategory.objects.get(id=cat_id)
                     try:
                         news = News(author=profile, title=title, slug=slug, post=post,
-<<<<<<< HEAD
                                         category=category, active=True, verified=True)
-=======
-                                        category=category, active=active, verified=verified)
->>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
                         news.save()
                         Log.objects.create(user=profile, action=f"created a new post {title}")
                         create_action(profile, "added a news post", news)
