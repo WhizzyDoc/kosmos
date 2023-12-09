@@ -3301,11 +3301,7 @@ class RewardViewSet(viewsets.ReadOnlyModelViewSet):
                         "message": "reward already exists!"
                     })
                 else:
-<<<<<<< HEAD
                     new_pos = Reward(title=title, description=description)
-=======
-                    new_pos = reward(title=title, description=description)
->>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
                     new_pos.save()
                     Log.objects.create(user=profile, action=f"created a new reward {title}")
                     return Response({
