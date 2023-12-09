@@ -32,6 +32,14 @@ import decimal
 import math
 import string
 
+<<<<<<< HEAD
+=======
+employee_group, created = Group.objects.get_or_create(name="employee")
+admin_group, created = Group.objects.get_or_create(name="admin")
+staff_group, created = Group.objects.get_or_create(name="staff")
+
+
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
 def slugify(s):
     s = s.lower().strip()
     s = re.sub(r'[^\w\s-]', '', s)
@@ -100,6 +108,7 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['get'])
     def get_site_info(self, request, *args, **kwargs):
+<<<<<<< HEAD
         api_token = self.request.query_params.get('api_token')
         try:
             admin = Admins.objects.get(api_token=api_token)
@@ -126,11 +135,30 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
                 return Response({
                     'status': 'error',
                     'message': 'user not authorized'
+=======
+        try:
+            sites = Site.objects.all()
+            if sites.exists():
+                site = Site.objects.first()
+                return Response({
+                    'status': 'success',
+                    'message': 'site info fetched successfully',
+                    'data': SiteSerializer(site).data
+                })
+            else:
+                return Response({
+                    'status': 'success',
+                    'message': 'Site info not found',
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
                 })
         except:
             return Response({
                 'status': 'error',
+<<<<<<< HEAD
                 'message': 'user not found'
+=======
+                'message': 'Error Occured'
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
             })
 
     @action(detail=False,
@@ -139,6 +167,7 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
         if request.method == 'POST':
             api_token = request.POST.get('api_token')
             title = request.POST.get('title')
+<<<<<<< HEAD
             phone = request.POST.get('phone')
             address = request.POST.get('address')
             email = request.POST.get("email")
@@ -181,6 +210,40 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
                                 'status': 'error',
                                 'message': 'error while saving company info'
                             })
+=======
+            tagline = request.POST.get('tagline')
+            about = request.POST.get('about')
+            email = request.POST.get("email")
+            objectives = request.POST.get('objectives')
+            mission = request.POST.get('mission')
+            logo = None
+            if request.FILES:
+                logo = request.FILES.get('logo')
+            try:
+                profile = Profile.objects.get(api_token=api_token)
+                user = profile.user
+                if admin_group in user.groups.all():
+                    try:
+                        site = Site.objects.first()
+                        if site is not None:
+                            return Response({
+                                'status': 'error',
+                                'message': 'site already exists, edit site info instead'
+                            })
+                        new_site = Site(title=title, tagline=tagline, logo=logo, about=about, objectives=objectives,
+                                        mission=mission, company_email=email)
+                        new_site.save()
+                        return Response({
+                            'status': 'success',
+                            'message': 'site created sucessfully',
+                            'data': SiteSerializer(new_site).data
+                        })
+                    except:
+                        return Response({
+                            'status': 'error',
+                            'message': 'error while creating site info'
+                        })
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
                 else:
                     return Response({
                         'status': 'error',
@@ -268,9 +331,15 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': 'GET method not allowed'
             })
 
+<<<<<<< HEAD
 class AdminViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Admins.objects.all()
     serializer_class = AdminSerializer
+=======
+class ProfileViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileSerializer
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
     permission_classes = [AllowAny]
     @action(detail=False,
             methods=['post'])
@@ -278,8 +347,15 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
         email = request.POST.get('email')
         f_name = request.POST.get('first_name')
         l_name = request.POST.get('last_name')
+<<<<<<< HEAD
         phone_number = request.POST.get('phone_number')
         #image = request.FILES.get('image')
+=======
+        m_name = request.POST.get('middle_name')
+        nationality = request.POST.get('nationality')
+        phone_number = request.POST.get('phone_number')
+        image = request.FILES.get('image')
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
         username = request.POST.get('username')
         password = request.POST.get('password')
         #check if email is valid
@@ -299,6 +375,7 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
                 'message': f"Invalid password",
             })
         try:
+<<<<<<< HEAD
             new_user = User(email=email, first_name=f_name, last_name=l_name, username=username)
             new_user.set_password(password)
             new_user.save()
@@ -316,6 +393,29 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
                         'status': 'success',
                         'message': f'Admin account created successfully',
                         'data': AdminSerializer(new_profile).data
+=======
+            admin = User.objects.get(groups=admin_group)
+            if admin is not None:
+                return Response({
+                    'status': 'error',
+                    'message': f'An admin account already exists.',
+                })
+            new_user = User.objects.create(email=email, first_name=f_name, last_name=l_name, username=username, is_superuser=True, is_staff=True)
+            new_user.set_password(password)
+            new_user.save()
+            new_user.groups.add(admin_group)
+            new_user.save()
+            try:
+                api_key = generate_token()
+                # create a new profile
+                new_profile = Profile(user=new_user, email=email, first_name=f_name, last_name=l_name, api_token=api_key,
+                                      middle_name=m_name, nationality=nationality, phone_number=phone_number, image=image)
+                new_profile.save()
+                return Response({
+                        'status': 'success',
+                        'message': f'Admin account created successfully',
+                        'data': ProfileSerializer(new_profile).data
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
                     })
             except:
                 return Response({
@@ -525,6 +625,28 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
                 "message": "Invalid API token"
             })
 
+<<<<<<< HEAD
+=======
+    @action(detail=False, methods=['get'])
+    def check_admin_account(self, request, *args, **kwargs):
+        try:
+            users = User.objects.filter(groups=admin_group)
+            if users.exists():
+                return Response({
+                 "status": "success",
+                 "message": True
+                })
+            else:
+                return Response({
+                    "status": "success",
+                    "message": False
+                })
+        except:
+            return Response({
+                "status": "error",
+                "message": "error occured"
+            })
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
     @action(detail=False,
             methods=['post'])
     def authentication(self, request, *args, **kwargs):
@@ -533,6 +655,7 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             if user.is_active:
+<<<<<<< HEAD
                 try:
                     admin = Admins.objects.get(user=user)
                     login(request, user)
@@ -542,6 +665,17 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
                         "data": AdminSerializer(admin).data,
                     })
                 except:
+=======
+                if admin_group in user.groups.all():
+                    login(request, user)
+                    profile = get_object_or_404(Profile, user=user)
+                    return Response({
+                        'status': "success",
+                        "message": "login successful",
+                        "data": ProfileSerializer(profile).data,
+                    })
+                else:
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
                     return Response({
                         'status': 'error',
                         'message': "User is not authorized",
@@ -1888,6 +2022,11 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
         title = request.POST.get('title')
         slug = slugify(title)
         post = request.POST.get('post')
+<<<<<<< HEAD
+=======
+        active = request.POST.get('active')
+        verified = request.POST.get('verified')
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
         cat_id = int(request.POST.get('category_id'))
         try:
             profile = Profile.objects.get(api_token=key)
@@ -1897,7 +2036,11 @@ class NewsViewSet(viewsets.ReadOnlyModelViewSet):
                     category = NewsCategory.objects.get(id=cat_id)
                     try:
                         news = News(author=profile, title=title, slug=slug, post=post,
+<<<<<<< HEAD
                                         category=category, active=True, verified=True)
+=======
+                                        category=category, active=active, verified=verified)
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
                         news.save()
                         Log.objects.create(user=profile, action=f"created a new post {title}")
                         create_action(profile, "added a news post", news)
@@ -3371,7 +3514,11 @@ class RewardViewSet(viewsets.ReadOnlyModelViewSet):
                         "message": "reward already exists!"
                     })
                 else:
+<<<<<<< HEAD
                     new_pos = Reward(title=title, description=description)
+=======
+                    new_pos = reward(title=title, description=description)
+>>>>>>> 1c3a9692fd8dbea04a7cb1094bc0019505b74322
                     new_pos.save()
                     Log.objects.create(user=profile, action=f"created a new reward {title}")
                     return Response({

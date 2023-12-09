@@ -25,7 +25,7 @@ class PositionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Position
         fields = ['id', 'title']
-        
+
 class NewsCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = NewsCategory
@@ -35,7 +35,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Department
         fields = ['id', 'title']
-        
+
 class BankSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bank
@@ -61,7 +61,7 @@ class ProfileSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
-        fields = ['id', 'id_no', 'first_name', 'last_name', 'email', 'image']
+        fields = ['id', 'id_no', 'first_name', 'last_name', 'email', 'phone_number', 'image']
 
 class BankAccountSerializer(serializers.ModelSerializer):
     user = EmployeeSerializer(many=False, read_only=True)
@@ -69,7 +69,7 @@ class BankAccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = BankAccount
         fields = ['id', 'user', 'bank', 'account_number', 'account_name']
-        
+
 class EventSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
@@ -113,10 +113,10 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'verb', 'target_ct', 'created']
-    
+
     def get_target_ct(self, obj):
         return obj.target_ct.model
-    
+
     """
     def to_representation(self, instance):
         ret = super().to_representation(instance)
