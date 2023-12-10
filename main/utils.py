@@ -37,7 +37,7 @@ def confirmation_email(receiver, name):
     fail_silently = False
     send_mail(subject, message, from_email, recipient_list, fail_silently, html_message=html_message)
    
-def send_new_employee_email(receiver, name, username, password):
+def send_new_employee_email(receiver, name, username, company):
     subject = f"KosmosHR Employee Onboarding"
     message = ''
     from_email = 'encrane04@gmail.com'  # Sender's email
@@ -45,11 +45,11 @@ def send_new_employee_email(receiver, name, username, password):
     html_message = f"""
     <div style="text-align:center; font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;">
     <h4>Dear {name},<h4><br><br>
-    <p>We are happy to inform you that you have been successfuly onboarded as a new employee at KosmosHR.</p>
+    <p>We are happy to inform you that you have been successfuly onboarded as a new employee at {company}.</p>
     <p>
     Your login details are as follows:<br>
     <span style="font-weight:600">Username:</span> {username}<br>
-    <span style="font-weight:600">Password:</span> {password}<br>
+    <span style="font-weight:600">Password:</span> {name}<br>
     </p><br><br>
     <p>Kindly change your password after logging in.</p><br><br>
     <h4>Best Regards,<h4>

@@ -45,17 +45,19 @@ def join(s):
     s = re.sub(r'^-+|-+$', '', s)
     return s
 
-def generate_id(id):
-    id = int(id)
+def generate_id(id, title, site_id):
+    id = int(id) + 1
+    site_id = int(site_id)
+    title = title.lower()[:3]
     id_no = ""
     if id < 10:
-        id_no = f'kos000{id}'
+        id_no = f'{site_id}{title}000{id}'
     elif id >= 10 and id < 100:
-        id_no = f'kos00{id}'
+        id_no = f'{site_id}{title}00{id}'
     elif id >= 100 and id < 1000:
-        id_no = f'kos0{id}'
+        id_no = f'{site_id}{title}0{id}'
     elif id >= 1000:
-        id_no = f'kos{id}'
+        id_no = f'{site_id}{title}{id}'
     return id_no
 
 
@@ -146,6 +148,7 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
             type = request.POST.get('type')
             about = request.POST.get('about')
             no_of_emp = request.POST.get('no_of_employees')
+            image = request.FILES.get('image')
             try:
                 admin = Admins.objects.get(api_token=api_token)
                 if admin is not None:
@@ -159,6 +162,9 @@ class SiteViewSet(viewsets.ReadOnlyModelViewSet):
                         site.type = type
                         site.no_of_employees = int(no_of_emp)
                         site.save()
+                        if image is not None:
+                            site.logo = image
+                            site.save()
                         Log.objects.create(user=admin.user, action="edited site information", site=site)
                         return Response({
                             'status': 'success',
@@ -211,6 +217,7 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
         f_name = request.POST.get('first_name')
         l_name = request.POST.get('last_name')
         phone_number = request.POST.get('phone_number')
+        title = request.POST.get('company_name')
         #image = request.FILES.get('image')
         username = request.POST.get('username')
         password = request.POST.get('password')
@@ -243,6 +250,8 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
                                     phone_number=phone_number)
                 #print('he')
                 new_profile.save()
+                free = Plan.objects.get(level=1)
+                Site.objects.create(owner=new_profile, title=title, phone_number=phone_number, plan=plan)
                 #confirmation_email(email, f_name)
                 return Response({
                         'status': 'success',
@@ -341,26 +350,18 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
             methods=['post'])
     def create_employee_account(self, request, *args, **kwargs):
         email = request.POST.get('email')
-        title = request.POST.get('title')
         f_name = request.POST.get('first_name')
         l_name = request.POST.get('last_name')
-        m_name = request.POST.get('middle_name')
-        city = request.POST.get('city')
-        state = request.POST.get('state')
-        nationality = request.POST.get('nationality')
         phone_number = request.POST.get('phone_number')
         salary = request.POST.get('salary')
         position = request.POST.get('position')
         department = request.POST.get('department')
-        dob = request.POST.get('date_of_birth')
         a_date = request.POST.get('appointment_date')
-        address = request.POST.get('address')
-        image = request.FILES.get('image')
         key = request.POST.get('api_token')
         try:
-            profile = Profile.objects.get(api_token=key)
-            user_p = profile.user
-            if admin_group in user_p.groups.all():
+            admin = Admins.objects.get(api_token=key)
+            if admin is not None:
+                site = Site.objects.get(owner=admin)
                 try:
                     # check if email is valid (view.py line 49)
                     if is_valid_email(email):
@@ -377,40 +378,36 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
                                 d = None
                                 if position is not None and str(position) != '':
                                     try:
-                                        p = Position.objects.get(id=int(position))
+                                        p = Position.objects.get(id=int(position), site=site)
                                     except:
                                         return Response({
                                             'status': 'error',
-                                            'message': 'Invalid id for position'
+                                            'message': 'Invalid position'
                                         })
                                 if department is not None and str(department) != '':
                                     try:
-                                        d = Department.objects.get(id=int(department))
+                                        d = Department.objects.get(id=int(department), site=site)
                                     except:
                                         return Response({
                                             'status': 'error',
-                                            'message': 'Invalid id for department'
+                                            'message': 'Invalid department'
                                         })
                                 new_user = User.objects.create(email=email, first_name=f_name, last_name=l_name)
                                 new_user.set_password(f_name)
                                 new_user.save()
-                                id_no = generate_id(new_user.id)
+                                emp_count = Profile.objects.filter(site=site).count()
+                                id_no = generate_id(emp_count, site.title, site.id)
                                 new_user.username = id_no
                                 new_user.save()
                                 # creates a new API key for user instance
                                 api_key = generate_token()
                                 # create a new profile
                                 new_profile = Profile(user=new_user, email=email, id_no=id_no, first_name=f_name, last_name=l_name,
-                                                    api_token=api_key, middle_name=m_name, nationality=nationality, phone_number=phone_number,
-                                                    salary=decimal.Decimal(salary), title=title, city=city, state=state, date_of_birth=dob, appointment_date=a_date,
-                                                    address=address, image=image, position=p, department=d)
+                                                    api_token=api_key, phone_number=phone_number, site=site, salary=decimal.Decimal(salary),
+                                                    appointment_date=a_date, position=p, department=d)
                                 new_profile.save()
-                                Log.objects.create(user=profile, action=f"created a new employee ID number {id_no}")
-                                if d is not None:
-                                    g = GroupChat.objects.get(department=d)
-                                    g.members.add(new_profile)
-                                    g.save()
-                                send_new_employee_email(email, f_name, id_no, f_name)
+                                Log.objects.create(user=admin.user, action=f"created a new employee ID number {id_no}")
+                                #send_new_employee_email(email, f_name, id_no, site.title)
                                 return Response({
                                     'status': 'success',
                                     'message': f'Account created successfully. An email has been sent to {email}. username is {id_no} and password is {f_name}',
@@ -587,7 +584,10 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
         page = self.request.query_params.get('page')
         per_page = self.request.query_params.get('per_page')
         query = self.request.query_params.get('search')
+        key = self.request.query_params.get('api_token')
         try:
+            admin = Admins.objects.get(api_token=key)
+            site = Site.objects.get(owner=admin)
             if page is None:
                 page = 1
             else:
@@ -600,7 +600,7 @@ class PositionViewSet(viewsets.ReadOnlyModelViewSet):
                 query = ""
             start = (page - 1) * per_page
             stop = page * per_page
-            total_items = Position.objects.filter(title__icontains=query).count()
+            total_items = Position.objects.filter(title__icontains=query, site=site).count()
             total_pages = math.ceil(total_items/per_page)
             positions = Position.objects.filter(title__icontains=query)[start:stop]
             if positions.exists():
@@ -1330,12 +1330,12 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
             total_items = Profile.objects.filter(site=site).filter(
                 Q(first_name__icontains=query) | Q(middle_name__icontains=query) |
                 Q(last_name__icontains=query) | Q(email__icontains=query) |
-                Q(phone_number__icontains=query)).count()
+                Q(phone_number__icontains=query) | Q(id_no__icontains=query)).count()
             total_pages = math.ceil(total_items/per_page)
             employees = Profile.objects.filter(site=site).filter(
                 Q(first_name__icontains=query) | Q(middle_name__icontains=query) |
                 Q(last_name__icontains=query) | Q(email__icontains=query) |
-                Q(phone_number__icontains=query))[start:stop]
+                Q(phone_number__icontains=query) | Q(id_no__icontains=query))[start:stop]
             if employees.exists():
                 return Response({
                     'status': 'success',
