@@ -21,7 +21,7 @@ class ProfileSerializer(ModelSerializer):
     position = PositionSerializer()
     class Meta:
         model = Profile
-        exclude = ["user", "api_token"]
+        exclude = ["user"]
         # fields = "__all__"
         read_only_fields = Profile._meta.get_fields()
 

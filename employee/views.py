@@ -45,8 +45,9 @@ class LoginView(GenericAPIView):
                     user_profile.api_token = token
                     user_profile.save()
                 log = Log.objects.create(
-                    user = user_profile,
-                    action = "You logged in"
+                    user = user,
+                    action = "You logged in",
+                    site = user_profile.site
                 )
                 log.save()
                 return Response({
