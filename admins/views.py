@@ -251,7 +251,7 @@ class AdminViewSet(viewsets.ReadOnlyModelViewSet):
                                     phone_number=phone_number)
                 #print('he')
                 new_profile.save()
-                free = Plan.objects.get(level=1)
+                plan = Plan.objects.get(level=1)
                 Site.objects.create(owner=new_profile, title=title, phone_number=phone_number, plan=plan)
                 #confirmation_email(email, f_name)
                 return Response({
@@ -1315,9 +1315,9 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
         key = self.request.query_params.get('api_token')
         try:
             admin = Admins.objects.get(api_token=key)
-            print(admin.first_name)
+            #print(admin.first_name)
             site = Site.objects.get(owner=admin)
-            print(site.title)
+            #print(site.title)
             if page is None:
                 page = 1
             else:
@@ -1328,6 +1328,8 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                 per_page = int(per_page)
             if query is None:
                 query = ""
+            if order is  None:
+                order = 'first_name'
             start = (page - 1) * per_page
             stop = page * per_page
             total_items = 0
@@ -1489,6 +1491,7 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
                         'status': 'success',
                         'message': 'employee tasks report retrieved',
                         'data': [TaskSerializer(tas).data for tas in tasks],
+                        'profile': ProfileSerializer(employee).data,
                         'total_tasks': tasks_count,
                         'completed_tasks': completed_tasks,
                         'incomplete_tasks': incomplete_tasks
@@ -1512,88 +1515,70 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False,
             methods=['post'])
     def edit_employee(self, request, *args, **kwargs):
-        email = request.POST.get('email')
-        title = request.POST.get('title')
+        key = request.POST.get('api_token')
+        id_no = request.POST.get('employee_id')
         f_name = request.POST.get('first_name')
         l_name = request.POST.get('last_name')
         m_name = request.POST.get('middle_name')
+        phone_number = request.POST.get('phone_number')
+        email = request.POST.get('email')
+        salary = request.POST.get('salary')
+        pos_id = request.POST.get('position')
+        dept_id = request.POST.get('department')
+        address = request.POST.get('address')
         city = request.POST.get('city')
         state = request.POST.get('state')
-        nationality = request.POST.get('nationality')
-        phone_number = request.POST.get('phone_number')
-        salary = request.POST.get('salary')
-        pos_id = request.POST.get('position_id')
-        dept_id = request.POST.get('department_id')
+        nationality = request.POST.get('nation')
         dob = request.POST.get('date_of_birth')
         a_date = request.POST.get('appointment_date')
-        address = request.POST.get('address')
-        image = request.FILES.get('image')
-        key = request.POST.get('api_token')
-        id_no = request.POST.get('employee_id')
         try:
-            profile = Profile.objects.get(api_token=key)
-            user = profile.user
-            if admin_group in user.groups.all():
+            admin = Admins.objects.get(api_token=key)
+            if admin is not None:
                 try:
                     employee = Profile.objects.get(id_no=id_no)
                     if employee is not None:
-                        # edited attributes
-                        if email:
-                            employee.email = email
-                            employee.save()
-                        if f_name:
+                        try:
+                            user = employee.user
+                            user.first_name = f_name
+                            user.last_name = l_name
+                            user.email = email
+                            user.save()
+                            #print('user saved')
                             employee.first_name = f_name
-                            employee.save()
-                        if title:
-                            employee.title = title
-                            employee.save()
-                        if l_name:
                             employee.last_name = l_name
-                            employee.save()
-                        if m_name:
                             employee.middle_name = m_name
-                            employee.save()
-                        if phone_number:
                             employee.phone_number = phone_number
-                            employee.save()
-                        if image:
-                            employee.image = image
-                            employee.save()
-                        if address:
+                            employee.email = email
+                            employee.salary = decimal.Decimal(salary)
                             employee.address = address
-                            employee.save()
-                        if city:
                             employee.city = city
-                            employee.save()
-                        if state:
                             employee.state = state
-                            employee.save()
-                        if nationality:
                             employee.nationality = nationality
-                            employee.save()
-                        if dob:
-                            employee.date_of_birth = dob
-                            employee.save()
-                        if a_date:
                             employee.appointment_date = a_date
                             employee.save()
-                        if salary:
-                            employee.salary = decimal.Decimal(salary)
-                            employee.save()
-                        if pos_id:
-                            position = Position.objects.get(id=pos_id)
-                            employee.position = position
-                            employee.save()
-                        if dept_id:
-                            department = Department.objects.get(id=dept_id)
-                            employee.department = department
-                            employee.save()
-                        Log.objects.create(user=profile, action=f"edited employee {id_no} profile")
-                        return Response({
-                            'status': "success",
-                            "message": "employee profile edited successfully",
-                            "data": ProfileSerializer(employee).data,
-                        })
+                            if dob is not None and dob != "":
+                                employee.date_of_birth = dob
+                                employee.save()
+                            if pos_id:
+                                position = Position.objects.get(id=int(pos_id))
+                                employee.position = position
+                                employee.save()
+                            if dept_id:
+                                department = Department.objects.get(id=int(dept_id))
+                                employee.department = department
+                                employee.save()
+                            Log.objects.create(user=admin.user, action=f"edited employee {id_no} profile", site=employee.site)
+                            return Response({
+                                'status': "success",
+                                "message": "employee profile edited successfully",
+                                "data": ProfileSerializer(employee).data,
+                            })
+                        except Exception as e:
+                            print(f"Exception: {e}")
+                            return Response({
+                                'status': "error",
+                                "message": f"Error Occured"
+                            })
                     else:
                         return Response({
                             'status': "error",

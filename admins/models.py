@@ -74,7 +74,7 @@ class Profile(models.Model):
     date_of_birth = models.DateField(blank=True, null=True)
     appointment_date = models.DateField(blank=True, null=True)
     site = models.ForeignKey(Site, related_name="staff", null=True, blank=True, on_delete=models.CASCADE)
-    address = models.CharField(max_length=500, blank=True)
+    address = models.CharField(max_length=500, blank=True, null=True)
     city = models.CharField(max_length=250, null=True, blank=True)
     state = models.CharField(max_length=250, null=True, blank=True)
     nationality = models.CharField(max_length=100, null=True, blank=True)
